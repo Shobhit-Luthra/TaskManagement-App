@@ -17,6 +17,13 @@ const eslintConfig = defineConfig([
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "Identifier[name=/^NEXT_PUBLIC_.*(SERVICE|SECRET|PRIVATE|SERVICE_ROLE)/i]",
+          message: "Secrets must not be exposed with the NEXT_PUBLIC_ prefix (07 §8).",
+        },
+      ],
     },
   },
   // eslint-config-prettier must be last
