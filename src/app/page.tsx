@@ -6,8 +6,12 @@ export default function LandingPage() {
       <h1 className="text-3xl font-semibold">Kanbo</h1>
       <p className="text-muted-foreground">A real-time Kanban board for small teams.</p>
       <div className="flex gap-3">
-        <Link href="/signup" className="underline">Sign up</Link>
-        <Link href="/login" className="underline">Sign in</Link>
+        <Link href="/signup" className="underline">
+          Sign up
+        </Link>
+        <Link href="/login" className="underline">
+          Sign in
+        </Link>
       </div>
     </main>
   );

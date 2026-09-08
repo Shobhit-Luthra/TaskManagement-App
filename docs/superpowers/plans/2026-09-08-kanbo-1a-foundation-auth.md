@@ -6,7 +6,7 @@
 
 **Architecture:** Next.js 15 App Router (React 19, TypeScript strict) deployed on Vercel. Authentication is Supabase Auth (GoTrue) accessed through `@supabase/ssr` with httpOnly cookie sessions — a browser client for client components, a server client for Server Components / Route Handlers / Server Actions, and Next.js middleware that refreshes the session on every navigation and guards protected routes. No database schema is created in this plan (that is Plan 1B); protected pages only read the authenticated user from the session.
 
-**Tech Stack:** Next.js 15, React 19, TypeScript 5 (strict), Tailwind CSS 4, shadcn/ui, `@supabase/ssr`, `@supabase/supabase-js`, Zod, Vitest, @testing-library/react, Playwright, ESLint, Prettier, Husky, lint-staged, Sentry, GitHub Actions, Vercel, Supabase CLI (`npx supabase`, no local Docker).
+**Tech Stack:** Next.js 16 (App Router; `create-next-app@latest` ships 16, accepted in place of the spec's "15" — App Router / RSC / Route Handlers requirements unchanged), React 19, TypeScript 5 (strict), Tailwind CSS 4, shadcn/ui, `@supabase/ssr`, `@supabase/supabase-js`, Zod, Vitest, @testing-library/react, Playwright, ESLint, Prettier, Husky, lint-staged, Sentry, GitHub Actions, Vercel, Supabase CLI (`npx supabase`, no local Docker).
 
 **Spec:** `docs/superpowers/specs/2026-09-08-kanbo-build-decisions.md`, plus `03_system_design.md` §6 (Authentication), `07_security_spec.md` §2–§3, §5 (CSP/headers), §8 (secrets), `02_ux_ui_spec.md` §S10 (auth screens), `05_api_spec.md` §3 (auth endpoints).
 
@@ -113,10 +113,12 @@
 ## Task 1: Repository init and Next.js scaffold
 
 **Files:**
+
 - Create: `package.json`, `tsconfig.json`, `next.config.ts`, `.gitignore`, `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/globals.css`
 - Create: `.git/` (via `git init`)
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: a running Next.js dev server on `http://localhost:3000`; `npm run build`, `npm run dev`, `npm run start`, `npm run typecheck` scripts.
 
@@ -166,8 +168,8 @@ Edit `tsconfig.json` so `compilerOptions` contains exactly these (merge, do not 
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
-    "paths": { "@/*": ["./src/*"] }
-  }
+    "paths": { "@/*": ["./src/*"] },
+  },
 }
 ```
 
@@ -189,8 +191,8 @@ Merge into `package.json`:
     "test:e2e": "playwright test",
     "format": "prettier --write .",
     "db:push": "supabase db push",
-    "db:diff": "supabase db diff"
-  }
+    "db:diff": "supabase db diff",
+  },
 }
 ```
 
@@ -230,8 +232,12 @@ export default function LandingPage() {
       <h1 className="text-3xl font-semibold">Kanbo</h1>
       <p className="text-muted-foreground">A real-time Kanban board for small teams.</p>
       <div className="flex gap-3">
-        <Link href="/signup" className="underline">Sign up</Link>
-        <Link href="/login" className="underline">Sign in</Link>
+        <Link href="/signup" className="underline">
+          Sign up
+        </Link>
+        <Link href="/login" className="underline">
+          Sign in
+        </Link>
       </div>
     </main>
   );
@@ -262,10 +268,12 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 2: Linting, formatting, and pre-commit hooks
 
 **Files:**
+
 - Create: `.prettierrc`, `.prettierignore`, `.husky/pre-commit`
 - Modify: `package.json` (devDeps, `lint-staged` block), `eslint.config.mjs`
 
 **Interfaces:**
+
 - Consumes: the scaffold from Task 1.
 - Produces: `npm run lint` and `npm run format`; a pre-commit hook running `lint-staged`.
 
@@ -322,8 +330,8 @@ Append to `eslint.config.mjs` config array:
 {
   "lint-staged": {
     "*.{ts,tsx}": ["eslint --fix", "prettier --write"],
-    "*.{json,md,css}": ["prettier --write"]
-  }
+    "*.{json,md,css}": ["prettier --write"],
+  },
 }
 ```
 
@@ -362,10 +370,12 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 3: Tailwind design tokens and shadcn/ui
 
 **Files:**
+
 - Modify: `src/app/globals.css` (semantic color tokens, light + dark)
 - Create: `components.json` (shadcn config), `src/lib/utils.ts`, `src/components/ui/*` (button, input, label, card, form, sonner)
 
 **Interfaces:**
+
 - Consumes: Tailwind 4 from the scaffold.
 - Produces: `cn()` from `@/lib/utils`; shadcn primitives importable from `@/components/ui/*`. Semantic tokens: `--background`, `--foreground`, `--card`, `--muted`, `--muted-foreground`, `--border`, `--primary`, `--primary-foreground`, `--destructive`, `--ring`.
 
@@ -461,9 +471,11 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 4: Vitest + Testing Library harness
 
 **Files:**
+
 - Create: `vitest.config.ts`, `vitest.setup.ts`, `src/test/helpers/render.tsx`, `src/lib/auth/schemas.ts`, `src/lib/auth/schemas.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing from prior tasks except the scaffold.
 - Produces:
   - `npm run test` runs Vitest in `jsdom`.
@@ -521,11 +533,7 @@ afterEach(() => cleanup());
 
 ```ts
 import { describe, expect, it } from "vitest";
-import {
-  passwordSchema,
-  signUpSchema,
-  resetPasswordSchema,
-} from "./schemas";
+import { passwordSchema, signUpSchema, resetPasswordSchema } from "./schemas";
 
 describe("passwordSchema", () => {
   it("rejects passwords shorter than 10 characters", () => {
@@ -538,8 +546,15 @@ describe("passwordSchema", () => {
 
 describe("signUpSchema", () => {
   it("trims and requires a display name of 1-80 chars", () => {
-    expect(signUpSchema.safeParse({ email: "a@b.com", password: "abcdefghij", displayName: "  " }).success).toBe(false);
-    const ok = signUpSchema.safeParse({ email: "a@b.com", password: "abcdefghij", displayName: "  Aditi  " });
+    expect(
+      signUpSchema.safeParse({ email: "a@b.com", password: "abcdefghij", displayName: "  " })
+        .success,
+    ).toBe(false);
+    const ok = signUpSchema.safeParse({
+      email: "a@b.com",
+      password: "abcdefghij",
+      displayName: "  Aditi  ",
+    });
     expect(ok.success).toBe(true);
     if (ok.success) expect(ok.data.displayName).toBe("Aditi");
   });
@@ -547,7 +562,10 @@ describe("signUpSchema", () => {
 
 describe("resetPasswordSchema", () => {
   it("fails when passwords do not match", () => {
-    expect(resetPasswordSchema.safeParse({ password: "abcdefghij", confirmPassword: "different99" }).success).toBe(false);
+    expect(
+      resetPasswordSchema.safeParse({ password: "abcdefghij", confirmPassword: "different99" })
+        .success,
+    ).toBe(false);
   });
 });
 ```
@@ -572,7 +590,10 @@ export const displayNameSchema = z
   .min(1, "Enter your name")
   .max(80, "Names are limited to 80 characters");
 
-export const signInSchema = z.object({ email: emailSchema, password: z.string().min(1, "Enter your password") });
+export const signInSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(1, "Enter your password"),
+});
 
 export const signUpSchema = z.object({
   email: emailSchema,
@@ -631,9 +652,11 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 5: Validated environment module
 
 **Files:**
+
 - Create: `src/lib/env.ts`, `src/lib/env.test.ts`, `.env.example`
 
 **Interfaces:**
+
 - Consumes: `zod`.
 - Produces:
   - `clientEnv: { NEXT_PUBLIC_SUPABASE_URL: string; NEXT_PUBLIC_SUPABASE_ANON_KEY: string; NEXT_PUBLIC_SITE_URL: string; NEXT_PUBLIC_SENTRY_DSN?: string }`
@@ -762,10 +785,12 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 6: Provision the `kanbo-dev` Supabase project
 
 **Files:**
+
 - Create: `supabase/config.toml`, `supabase/.gitignore`
 - Modify: `.env.local` (git-ignored — created here, never committed)
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: a live `kanbo-dev` Supabase project in `ap-south-1`; `.env.local` populated with `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SITE_URL`; a linked `supabase/` directory for Plan 1B migrations.
 
@@ -822,6 +847,7 @@ SUPABASE_SERVICE_ROLE_KEY=<service_role key>
 - [ ] **Step 6: Configure Auth redirect URLs**
 
 In the Supabase dashboard → Authentication → URL Configuration for `kanbo-dev`:
+
 - Site URL: `http://localhost:3000`
 - Redirect URLs: add `http://localhost:3000/auth/callback` and `http://localhost:3000/auth/confirm`
 
@@ -849,10 +875,12 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 7: Supabase SSR client wrappers
 
 **Files:**
+
 - Create: `src/lib/supabase/client.ts`, `src/lib/supabase/server.ts`, `src/lib/supabase/middleware.ts`
 - Create: `src/lib/supabase/client.test.ts`
 
 **Interfaces:**
+
 - Consumes: `clientEnv` from `@/lib/env`.
 - Produces:
   - `createClient(): SupabaseClient` — browser, from `client.ts` (`"use client"` safe)
@@ -925,7 +953,14 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { clientEnv } from "@/lib/env";
 
-const PUBLIC_PATHS = ["/", "/login", "/signup", "/forgot-password", "/reset-password", "/verify-email"];
+const PUBLIC_PATHS = [
+  "/",
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
+];
 const AUTH_ROUTE_PREFIXES = ["/auth/"];
 
 function isPublic(pathname: string) {
@@ -947,7 +982,9 @@ export async function updateSession(request: NextRequest) {
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options),
+          );
         },
       },
     },
@@ -967,7 +1004,12 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Verified-email gate: an authenticated but unconfirmed user may only see /verify-email and auth routes.
-  if (user && !user.email_confirmed_at && pathname !== "/verify-email" && !pathname.startsWith("/auth/")) {
+  if (
+    user &&
+    !user.email_confirmed_at &&
+    pathname !== "/verify-email" &&
+    !pathname.startsWith("/auth/")
+  ) {
     const url = request.nextUrl.clone();
     url.pathname = "/verify-email";
     return NextResponse.redirect(url);
@@ -1029,9 +1071,11 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 8: Root middleware wiring + auth error mapper
 
 **Files:**
+
 - Create: `middleware.ts` (repo root), `src/lib/auth/errors.ts`, `src/lib/auth/errors.test.ts`
 
 **Interfaces:**
+
 - Consumes: `updateSession` from `@/lib/supabase/middleware`.
 - Produces:
   - active Next.js middleware guarding every route except static assets
@@ -1071,7 +1115,9 @@ describe("mapAuthError", () => {
     expect(msg).toBe("Check your inbox to continue.");
   });
   it("falls back to a generic message for unknown errors", () => {
-    expect(mapAuthError({ message: "some internal detail" })).toBe("Something went wrong. Please try again.");
+    expect(mapAuthError({ message: "some internal detail" })).toBe(
+      "Something went wrong. Please try again.",
+    );
   });
   it("handles null", () => {
     expect(mapAuthError(null)).toBe("Something went wrong. Please try again.");
@@ -1098,7 +1144,8 @@ export function mapAuthError(error: AuthErrorLike): string {
   if (m.includes("email not confirmed")) return "Please verify your email address first.";
   if (m.includes("user already registered")) return "Check your inbox to continue.";
   if (m.includes("password")) return "Use at least 10 characters.";
-  if (m.includes("rate limit") || error.status === 429) return "Too many attempts. Try again in a few minutes.";
+  if (m.includes("rate limit") || error.status === 429)
+    return "Too many attempts. Try again in a few minutes.";
   return GENERIC;
 }
 ```
@@ -1127,9 +1174,11 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 9: Auth server actions
 
 **Files:**
+
 - Create: `src/app/actions/auth.ts`, `src/app/actions/auth.test.ts`
 
 **Interfaces:**
+
 - Consumes: `@/lib/supabase/server` `createClient`, `@/lib/auth/schemas`, `@/lib/auth/errors` `mapAuthError`, `@/lib/env` `clientEnv`.
 - Produces server actions, each returning `{ ok: true } | { ok: false; message: string; fieldErrors?: Record<string, string> }`:
   - `signUp(_prev, formData: FormData)` — validates `signUpSchema`, calls `supabase.auth.signUp` with `emailRedirectTo: ${SITE_URL}/auth/confirm`, `data: { display_name }`; on success redirects to `/verify-email`
@@ -1170,7 +1219,10 @@ beforeEach(() => vi.clearAllMocks());
 describe("signUp", () => {
   it("returns field errors for a weak password without calling Supabase", async () => {
     const { signUp: action } = await import("./auth");
-    const res = await action(undefined, fd({ email: "a@b.com", password: "short", displayName: "Aditi" }));
+    const res = await action(
+      undefined,
+      fd({ email: "a@b.com", password: "short", displayName: "Aditi" }),
+    );
     expect(res).toMatchObject({ ok: false });
     expect(signUp).not.toHaveBeenCalled();
   });
@@ -1226,8 +1278,7 @@ import {
 } from "@/lib/auth/schemas";
 
 export type ActionResult =
-  | { ok: true }
-  | { ok: false; message: string; fieldErrors?: Record<string, string> };
+  { ok: true } | { ok: false; message: string; fieldErrors?: Record<string, string> };
 
 function zodToFieldErrors(issues: { path: (string | number)[]; message: string }[]) {
   const out: Record<string, string> = {};
@@ -1245,7 +1296,11 @@ export async function signUp(_prev: unknown, formData: FormData): Promise<Action
     displayName: formData.get("displayName"),
   });
   if (!parsed.success) {
-    return { ok: false, message: "Please fix the highlighted fields.", fieldErrors: zodToFieldErrors(parsed.error.issues) };
+    return {
+      ok: false,
+      message: "Please fix the highlighted fields.",
+      fieldErrors: zodToFieldErrors(parsed.error.issues),
+    };
   }
   const supabase = await createClient();
   const { error } = await supabase.auth.signUp({
@@ -1266,7 +1321,11 @@ export async function signIn(_prev: unknown, formData: FormData): Promise<Action
     password: formData.get("password"),
   });
   if (!parsed.success) {
-    return { ok: false, message: "Enter your email and password.", fieldErrors: zodToFieldErrors(parsed.error.issues) };
+    return {
+      ok: false,
+      message: "Enter your email and password.",
+      fieldErrors: zodToFieldErrors(parsed.error.issues),
+    };
   }
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
@@ -1281,10 +1340,17 @@ export async function signOut(): Promise<void> {
   redirect("/login");
 }
 
-export async function requestPasswordReset(_prev: unknown, formData: FormData): Promise<ActionResult> {
+export async function requestPasswordReset(
+  _prev: unknown,
+  formData: FormData,
+): Promise<ActionResult> {
   const parsed = resetRequestSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) {
-    return { ok: false, message: "Enter a valid email address.", fieldErrors: zodToFieldErrors(parsed.error.issues) };
+    return {
+      ok: false,
+      message: "Enter a valid email address.",
+      fieldErrors: zodToFieldErrors(parsed.error.issues),
+    };
   }
   const supabase = await createClient();
   await supabase.auth.resetPasswordForEmail(parsed.data.email, {
@@ -1300,7 +1366,11 @@ export async function resetPassword(_prev: unknown, formData: FormData): Promise
     confirmPassword: formData.get("confirmPassword"),
   });
   if (!parsed.success) {
-    return { ok: false, message: "Please fix the highlighted fields.", fieldErrors: zodToFieldErrors(parsed.error.issues) };
+    return {
+      ok: false,
+      message: "Please fix the highlighted fields.",
+      fieldErrors: zodToFieldErrors(parsed.error.issues),
+    };
   }
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
@@ -1308,7 +1378,10 @@ export async function resetPassword(_prev: unknown, formData: FormData): Promise
   redirect("/login?reset=1");
 }
 
-export async function resendVerification(_prev: unknown, formData: FormData): Promise<ActionResult> {
+export async function resendVerification(
+  _prev: unknown,
+  formData: FormData,
+): Promise<ActionResult> {
   const email = String(formData.get("email") || "");
   if (email) {
     const supabase = await createClient();
@@ -1338,11 +1411,13 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 10: Auth UI — shell, forms, and pages
 
 **Files:**
+
 - Create: `src/app/(auth)/layout.tsx`, `src/components/auth/auth-form-shell.tsx`, `src/components/auth/sign-in-form.tsx`, `src/components/auth/sign-up-form.tsx`, `src/components/auth/forgot-password-form.tsx`, `src/components/auth/reset-password-form.tsx`
 - Create: `src/app/(auth)/login/page.tsx`, `src/app/(auth)/signup/page.tsx`, `src/app/(auth)/forgot-password/page.tsx`, `src/app/(auth)/reset-password/page.tsx`, `src/app/(auth)/verify-email/page.tsx`
 - Create: `src/components/auth/sign-in-form.test.tsx`
 
 **Interfaces:**
+
 - Consumes: the server actions from `@/app/actions/auth`, shadcn `ui/*`, `useActionState` from React 19.
 - Produces: the five auth routes rendering per `02 §S10`. `<GoogleButton />` lives in `auth-form-shell.tsx` and calls the browser client `signInWithOAuth({ provider: "google", options: { redirectTo: ${origin}/auth/callback } })`.
 
@@ -1353,7 +1428,7 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ```tsx
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-muted/30 p-4">
+    <main className="bg-muted/30 flex min-h-dvh items-center justify-center p-4">
       <div className="w-full max-w-sm">{children}</div>
     </main>
   );
@@ -1399,14 +1474,14 @@ export function AuthFormShell({
             <Button type="button" variant="outline" onClick={google} className="w-full">
               Continue with Google
             </Button>
-            <div className="relative text-center text-xs text-muted-foreground">
-              <span className="bg-card px-2 relative z-10">or</span>
+            <div className="text-muted-foreground relative text-center text-xs">
+              <span className="bg-card relative z-10 px-2">or</span>
               <span className="absolute inset-x-0 top-1/2 -z-0 border-t" />
             </div>
           </>
         )}
         {children}
-        {footer && <div className="text-center text-sm text-muted-foreground">{footer}</div>}
+        {footer && <div className="text-muted-foreground text-center text-sm">{footer}</div>}
       </CardContent>
     </Card>
   );
@@ -1426,7 +1501,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export function SignInForm({ next }: { next?: string }) {
-  const [state, action, pending] = useActionState<ActionResult | undefined, FormData>(signIn, undefined);
+  const [state, action, pending] = useActionState<ActionResult | undefined, FormData>(
+    signIn,
+    undefined,
+  );
   const err = state && !state.ok ? state : undefined;
 
   return (
@@ -1435,18 +1513,32 @@ export function SignInForm({ next }: { next?: string }) {
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email">Email</Label>
         <Input id="email" name="email" type="email" autoComplete="email" required />
-        {err?.fieldErrors?.email && <p className="text-xs text-destructive">{err.fieldErrors.email}</p>}
+        {err?.fieldErrors?.email && (
+          <p className="text-destructive text-xs">{err.fieldErrors.email}</p>
+        )}
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="password">Password</Label>
-        <Input id="password" name="password" type="password" autoComplete="current-password" required />
-        {err?.fieldErrors?.password && <p className="text-xs text-destructive">{err.fieldErrors.password}</p>}
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          required
+        />
+        {err?.fieldErrors?.password && (
+          <p className="text-destructive text-xs">{err.fieldErrors.password}</p>
+        )}
       </div>
-      {err && !err.fieldErrors && <p className="text-sm text-destructive" role="alert">{err.message}</p>}
+      {err && !err.fieldErrors && (
+        <p className="text-destructive text-sm" role="alert">
+          {err.message}
+        </p>
+      )}
       <Button type="submit" disabled={pending} className="w-full">
         {pending ? "Signing in…" : "Sign in"}
       </Button>
-      <Link href="/forgot-password" className="text-center text-xs text-muted-foreground underline">
+      <Link href="/forgot-password" className="text-muted-foreground text-center text-xs underline">
         Forgot your password?
       </Link>
     </form>
@@ -1469,12 +1561,23 @@ import { AuthFormShell } from "@/components/auth/auth-form-shell";
 import { SignInForm } from "@/components/auth/sign-in-form";
 import Link from "next/link";
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
   const { next } = await searchParams;
   return (
     <AuthFormShell
       title="Sign in to Kanbo"
-      footer={<>New here? <Link href="/signup" className="underline">Create an account</Link></>}
+      footer={
+        <>
+          New here?{" "}
+          <Link href="/signup" className="underline">
+            Create an account
+          </Link>
+        </>
+      }
     >
       <SignInForm next={next} />
     </AuthFormShell>
@@ -1493,12 +1596,14 @@ import { Input } from "@/components/ui/input";
 export default function VerifyEmailPage() {
   return (
     <AuthFormShell title="Check your inbox" showGoogle={false}>
-      <p className="text-sm text-muted-foreground">
+      <p className="text-muted-foreground text-sm">
         We sent you a verification link. Click it to finish setting up your account.
       </p>
       <form action={resendVerification} className="flex flex-col gap-2">
         <Input name="email" type="email" placeholder="you@example.com" required />
-        <Button type="submit" variant="outline">Resend the link</Button>
+        <Button type="submit" variant="outline">
+          Resend the link
+        </Button>
       </form>
     </AuthFormShell>
   );
@@ -1557,10 +1662,12 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 11: OAuth / email-link callback routes
 
 **Files:**
+
 - Create: `src/app/auth/callback/route.ts`, `src/app/auth/confirm/route.ts`
 - Create: `src/app/auth/callback/route.test.ts`
 
 **Interfaces:**
+
 - Consumes: `@/lib/supabase/server` `createClient`.
 - Produces:
   - `GET /auth/callback?code=...&next=...` — exchanges the PKCE `code` for a session, redirects to `next` (default `/projects`); on error redirects to `/login?error=oauth`
@@ -1582,7 +1689,9 @@ describe("GET /auth/callback", () => {
   it("redirects to next on a successful code exchange", async () => {
     exchangeCodeForSession.mockResolvedValue({ error: null });
     const { GET } = await import("./route");
-    const res = await GET(new Request("http://localhost:3000/auth/callback?code=abc&next=/projects"));
+    const res = await GET(
+      new Request("http://localhost:3000/auth/callback?code=abc&next=/projects"),
+    );
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe("http://localhost:3000/projects");
   });
@@ -1670,9 +1779,11 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 12: Authenticated shell + protected placeholder page + sign-out
 
 **Files:**
+
 - Create: `src/app/(app)/layout.tsx`, `src/app/(app)/projects/page.tsx`, `src/components/auth/sign-out-button.tsx`
 
 **Interfaces:**
+
 - Consumes: `@/lib/supabase/server` `createClient`, `signOut` action.
 - Produces: `/projects` route that requires a verified session and shows the user's email + a working sign-out button. This is the placeholder Plan 1B replaces with the real project list.
 
@@ -1708,7 +1819,9 @@ import { Button } from "@/components/ui/button";
 export function SignOutButton() {
   return (
     <form action={signOut}>
-      <Button type="submit" variant="ghost" size="sm">Sign out</Button>
+      <Button type="submit" variant="ghost" size="sm">
+        Sign out
+      </Button>
     </form>
   );
 }
@@ -1734,7 +1847,9 @@ export default async function ProjectsPage() {
         <h1 className="text-2xl font-semibold">Projects</h1>
         <SignOutButton />
       </div>
-      <p className="text-sm text-muted-foreground">Signed in as {user?.email}. Project list arrives in Plan 1B.</p>
+      <p className="text-muted-foreground text-sm">
+        Signed in as {user?.email}. Project list arrives in Plan 1B.
+      </p>
     </main>
   );
 }
@@ -1748,6 +1863,7 @@ Expected: success.
 - [ ] **Step 5: Manual end-to-end check against `kanbo-dev`**
 
 With `.env.local` populated and `npm run dev` running:
+
 1. `/signup` → submit real email + 10-char password + name → lands on `/verify-email`.
 2. Open the Supabase dashboard → Authentication → Users → confirm the user exists, unconfirmed.
 3. Click the confirmation link in the email (or copy the `token_hash` link) → lands on `/projects`.
@@ -1769,10 +1885,12 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 13: Security headers and CSP
 
 **Files:**
+
 - Modify: `next.config.ts`
 - Create: `src/lib/security/headers.ts`, `src/lib/security/headers.test.ts`
 
 **Interfaces:**
+
 - Consumes: `clientEnv` (for the Supabase origin in `connect-src`).
 - Produces: `securityHeaders(): { key: string; value: string }[]` used by `next.config.ts` `headers()`. Covers HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY`, and a CSP with `frame-ancestors 'none'`, `default-src 'self'`, `connect-src 'self' <supabase-url> wss://<supabase-host>`, `img-src 'self' data: https:`, `style-src 'self' 'unsafe-inline'` (Tailwind), `script-src 'self'`. (`07 §5`, `07 §18.10`)
 
@@ -1883,10 +2001,12 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 14: Sentry error tracking
 
 **Files:**
+
 - Create: `sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`, `src/instrumentation.ts`
 - Modify: `next.config.ts` (wrap with `withSentryConfig`), `.env.example`
 
 **Interfaces:**
+
 - Consumes: `clientEnv.NEXT_PUBLIC_SENTRY_DSN` (optional — Sentry is a no-op when unset).
 - Produces: client + server error capture; source-map upload gated on `SENTRY_AUTH_TOKEN` being present in CI/prod only.
 
@@ -1905,7 +2025,12 @@ import * as Sentry from "@sentry/nextjs";
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 if (dsn) {
-  Sentry.init({ dsn, tracesSampleRate: 0.1, replaysOnErrorSampleRate: 1.0, replaysSessionSampleRate: 0 });
+  Sentry.init({
+    dsn,
+    tracesSampleRate: 0.1,
+    replaysOnErrorSampleRate: 1.0,
+    replaysSessionSampleRate: 0,
+  });
 }
 ```
 
@@ -1961,10 +2086,12 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 15: Playwright E2E for the auth journey
 
 **Files:**
+
 - Create: `playwright.config.ts`, `e2e/auth.spec.ts`, `e2e/helpers/mailbox.ts`
 - Modify: `package.json` (already has `test:e2e`), `.gitignore` (already covers reports)
 
 **Interfaces:**
+
 - Consumes: the running app + `kanbo-dev`. Uses the Supabase admin API (service role) to read the latest confirmation link for a throwaway address, OR uses `supabase.auth.admin.generateLink`. Because `SUPABASE_SERVICE_ROLE_KEY` is available in `.env.local`, the helper calls `generateLink` server-side within the test's Node context.
 - Produces: one E2E spec proving signup → confirm → protected access → sign-out → guard.
 
@@ -2085,9 +2212,11 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 16: CI pipeline
 
 **Files:**
+
 - Create: `.github/workflows/ci.yml`
 
 **Interfaces:**
+
 - Consumes: all prior scripts.
 - Produces: a CI workflow running on every push and PR: install → typecheck → lint → unit tests → build. E2E runs in a separate job gated on repository secrets being present (skipped on forks).
 
@@ -2166,10 +2295,12 @@ Claude-Session: https://claude.ai/code/session_01FtzuvPP7j19GjU2ndxAj93"
 ## Task 17: Vercel deploy skeleton + staging Supabase
 
 **Files:**
+
 - Create: `vercel.json` (optional — only if header/region overrides are needed; otherwise skip)
 - Modify: `.env.example` (document the Vercel-set vars)
 
 **Interfaces:**
+
 - Consumes: the built app.
 - Produces: a deployed preview URL on Vercel wired to `kanbo-staging`; `main` deploying to a production URL wired to `kanbo-prod` (prod DB schema is empty until Plan 1B migrations run).
 
@@ -2254,36 +2385,37 @@ git push
 
 **1. Spec coverage**
 
-| Spec requirement | Task |
-|---|---|
-| Next.js 15 App Router + TS strict scaffold (`06 §2`) | 1 |
-| Lint/format/pre-commit (`06 §5`) | 2 |
-| Tailwind 4 + shadcn/ui + semantic tokens (`06 §2`, `02 §23`) | 3 |
-| Vitest + Testing Library (`06 §5`) | 4, 10 |
-| Zod shared validation (`07 §5`) | 4, 9 |
-| Secrets never `NEXT_PUBLIC_` + lint guard (`07 §8`) | 5 |
-| Supabase provisioning, `ap-south-1` (M2) | 6, 17 |
-| `@supabase/ssr` cookie sessions, no localStorage (`03 §6`, `07 §3`) | 7 |
-| Middleware session refresh + route guards (`03 §6`) | 7, 8 |
-| Enumeration resistance (`07 §2`) | 8, 9 |
-| Email/password auth, 10-char min (`07 §2`, `05 §3`) | 4, 9, 10 |
-| Email verification gate (`07 §2`) | 7, 11, 12 |
-| Password reset flow (`05 §3`, `02 §S10`) | 9, 10, 11 |
-| Google OAuth (`01 §21`, `05 §3`) | 6, 10, 11 |
-| Auth screen layout — Google above divider, blur validation, generic errors (`02 §S10`) | 10 |
-| `404 not 403` / server re-verification principle (`03 §6`) | 12 (server-side `getUser` check) |
-| Security headers + CSP, `frame-ancestors 'none'` (`07 §5`, `07 §18.10`) | 13 |
-| Sentry with release tagging (`03 §16`, `06 §4`) | 14 |
-| Playwright E2E for auth (`06 §5`) | 15 |
-| CI: typecheck → lint → test → build (`03 §24`) | 16 |
-| Preview never points at prod DB (`03 §24`, `07 §13`) | 17 |
-| Conventional commits, frequent (`writing-plans`) | every task |
+| Spec requirement                                                                       | Task                             |
+| -------------------------------------------------------------------------------------- | -------------------------------- |
+| Next.js 15 App Router + TS strict scaffold (`06 §2`)                                   | 1                                |
+| Lint/format/pre-commit (`06 §5`)                                                       | 2                                |
+| Tailwind 4 + shadcn/ui + semantic tokens (`06 §2`, `02 §23`)                           | 3                                |
+| Vitest + Testing Library (`06 §5`)                                                     | 4, 10                            |
+| Zod shared validation (`07 §5`)                                                        | 4, 9                             |
+| Secrets never `NEXT_PUBLIC_` + lint guard (`07 §8`)                                    | 5                                |
+| Supabase provisioning, `ap-south-1` (M2)                                               | 6, 17                            |
+| `@supabase/ssr` cookie sessions, no localStorage (`03 §6`, `07 §3`)                    | 7                                |
+| Middleware session refresh + route guards (`03 §6`)                                    | 7, 8                             |
+| Enumeration resistance (`07 §2`)                                                       | 8, 9                             |
+| Email/password auth, 10-char min (`07 §2`, `05 §3`)                                    | 4, 9, 10                         |
+| Email verification gate (`07 §2`)                                                      | 7, 11, 12                        |
+| Password reset flow (`05 §3`, `02 §S10`)                                               | 9, 10, 11                        |
+| Google OAuth (`01 §21`, `05 §3`)                                                       | 6, 10, 11                        |
+| Auth screen layout — Google above divider, blur validation, generic errors (`02 §S10`) | 10                               |
+| `404 not 403` / server re-verification principle (`03 §6`)                             | 12 (server-side `getUser` check) |
+| Security headers + CSP, `frame-ancestors 'none'` (`07 §5`, `07 §18.10`)                | 13                               |
+| Sentry with release tagging (`03 §16`, `06 §4`)                                        | 14                               |
+| Playwright E2E for auth (`06 §5`)                                                      | 15                               |
+| CI: typecheck → lint → test → build (`03 §24`)                                         | 16                               |
+| Preview never points at prod DB (`03 §24`, `07 §13`)                                   | 17                               |
+| Conventional commits, frequent (`writing-plans`)                                       | every task                       |
 
 Gaps intentionally deferred: `users` profile-mirror table + `handle_new_user` trigger, RLS, pgTAP, rate limiting on auth endpoints, `AppError` envelope, structured request logging → **Plan 1B** (they need the schema and the Route Handler layer, neither of which exists yet). `display_name` captured at signup is stored in `auth.users.user_metadata` here and copied into the `users` row by the 1B trigger. Rate limiting on `/auth/*` is a Supabase dashboard setting (enable "rate limits" for email + token endpoints) plus the app-level limiter in 1B; note it for the operator during Task 6.
 
 **2. Placeholder scan:** No "TBD"/"handle appropriately" left. Task 4 Step 4 and Task 10 Step 4 describe building sibling forms "following the exact structure of" a fully-shown reference component — the reference code is present in the same task, which the No-Placeholders rule permits (the pattern is shown, not deferred). Task 15 Step 4 carries an explicit fallback note because Supabase's `generateLink` semantics vary by project setting; both branches are spelled out.
 
 **3. Type consistency:**
+
 - `ActionResult` defined in Task 9 (`{ ok: true } | { ok: false; message; fieldErrors? }`); consumed unchanged in Task 10.
 - `createClient` is the name in both `lib/supabase/client.ts` (sync) and `lib/supabase/server.ts` (async) — deliberate, matching Supabase's own docs; tests and callers `await` the server one.
 - `securityHeaders()` return shape `{ key; value }[]` defined Task 13, consumed by `next.config.ts` in the same task.
