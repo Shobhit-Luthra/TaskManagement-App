@@ -16,6 +16,13 @@ import {
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import {
+  MUTATION_ECHO_TTL_MS,
+  SYNC_GRACE_MS,
+  mergeColumnEvent,
+  mergeTaskEvent,
+} from "@/lib/realtime/board-sync";
+import { useProjectChannel } from "@/lib/realtime/use-project-channel";
 import { cn } from "@/lib/utils";
 
 export type BoardColumn = {
@@ -39,20 +46,45 @@ export type BoardTask = {
 
 export function ProjectBoard({
   projectId,
-  columns,
+  initialColumns,
   initialTasks,
-  readOnly,
+  readOnly: readOnlyRole,
 }: {
   projectId: string;
-  columns: BoardColumn[];
+  initialColumns: BoardColumn[];
   initialTasks: BoardTask[];
   readOnly: boolean;
 }) {
   const [tasks, setTasks] = useState(initialTasks);
+  const [columns, setColumns] = useState(initialColumns);
   const [activeColumn, setActiveColumn] = useState(0);
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<BoardTask | null>(null);
+  const inFlightMutations = useRef<Set<string>>(new Set());
+
+  const syncStatus = useProjectChannel(projectId, {
+    onTask: (event) => {
+      setTasks((current) => {
+        const result = mergeTaskEvent(current, event, inFlightMutations.current);
+        if (result.consumedMutationId) inFlightMutations.current.delete(result.consumedMutationId);
+        return result.tasks;
+      });
+    },
+    onColumn: (event) => setColumns((current) => mergeColumnEvent(current, event)),
+  });
+
+  const [degraded, setDegraded] = useState(false);
+  useEffect(() => {
+    if (syncStatus !== "reconnecting") return;
+    const timer = window.setTimeout(() => setDegraded(true), SYNC_GRACE_MS);
+    return () => {
+      window.clearTimeout(timer);
+      setDegraded(false);
+    };
+  }, [syncStatus]);
+
+  const readOnly = readOnlyRole || degraded;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -79,6 +111,9 @@ export function ProjectBoard({
         ? 1
         : Math.min(...targetTasks.map((candidate) => candidate.position)) - 1;
     const previousTask = task;
+    const mutationId = crypto.randomUUID();
+    inFlightMutations.current.add(mutationId);
+    window.setTimeout(() => inFlightMutations.current.delete(mutationId), MUTATION_ECHO_TTL_MS);
     setMoveError(null);
     setMovingTaskId(task.id);
     setTasks((current) =>
@@ -90,7 +125,7 @@ export function ProjectBoard({
       const response = await fetch(`/api/v1/tasks/${task.id}/position`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ columnId, position, mutationId: crypto.randomUUID() }),
+        body: JSON.stringify({ columnId, position, mutationId }),
       });
       const payload: unknown = await response.json();
       if (!response.ok || !isMovedTask(payload)) throw new Error("Move rejected");
@@ -160,6 +195,16 @@ export function ProjectBoard({
 
   return (
     <section aria-label="Board columns" className="bg-muted/40 relative flex-1 overflow-hidden">
+      {syncStatus === "reconnecting" && (
+        <p
+          role="status"
+          className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100"
+        >
+          {degraded
+            ? "Reconnecting to live updates. The board is read-only until the connection returns."
+            : "Reconnecting to live updates…"}
+        </p>
+      )}
       <div className="bg-background flex flex-col gap-2 border-b px-4 py-3 sm:flex-row sm:items-center">
         <label className="relative min-w-0 flex-1">
           <span className="sr-only">Search tasks</span>

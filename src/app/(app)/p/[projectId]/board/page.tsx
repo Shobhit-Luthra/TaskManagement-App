@@ -88,7 +88,7 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
       </header>
       <ProjectBoard
         projectId={projectId}
-        columns={columns}
+        initialColumns={columns}
         initialTasks={tasks}
         readOnly={membership?.role === "viewer"}
       />
