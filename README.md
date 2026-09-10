@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kanbo
 
-## Getting Started
+Kanbo is a focused Kanban board for small teams. It provides email and Google authentication, protected projects, responsive boards, task creation and editing, priority and due-date tracking, drag-and-drop task movement, soft deletion, and a light/dark theme.
 
-First, run the development server:
+## Stack
+
+- Next.js 16, React 19, TypeScript, Tailwind CSS
+- Supabase Auth and Postgres with row-level security
+- Zod validation, Vitest, ESLint, Prettier
+
+## Local setup
+
+1. Install Node 20 or later and npm.
+2. Create a Supabase project in the Mumbai region (`ap-south-1`).
+3. Copy `.env.example` to `.env.local`, then add the project URL and anonymous key. Set `NEXT_PUBLIC_SITE_URL` to the URL you will use locally.
+4. Install dependencies and apply the migrations:
+
+   ```bash
+   npm install
+   npx supabase login
+   npx supabase link --project-ref <your-project-ref>
+   npm run db:push
+   ```
+
+5. In Supabase Authentication settings, add `http://localhost:3000/auth/callback` to the allowed redirect URLs. Configure your email provider and, if desired, Google OAuth.
+6. Start the app:
+
+   ```bash
+   npm run dev
+   ```
+
+Open http://localhost:3000, create an account, verify your email, create a project, and add your first task.
+
+## Checks
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run typecheck
+npm run lint
+npm run test
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Database migrations
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Migrations live in `supabase/migrations/`. They establish the core data model, row-level security, default project columns, and transaction-safe functions for creating, moving, updating, and soft-deleting tasks. Do not edit a migration after it has been applied to a shared environment; add a new migration instead.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deployment
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Configure the same environment variables in the hosting provider, set `NEXT_PUBLIC_SITE_URL` to the deployed origin, and add its `/auth/callback` URL to Supabase Auth redirect settings. Apply migrations to each Supabase environment before deploying its matching application environment.
