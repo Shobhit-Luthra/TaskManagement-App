@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-08
 **Status:** Approved
-**Relates to:** `00_project_analysis.md` – `07_security_spec.md` (the authoritative specs)
+**Relates to:** `docs/specs/00_project_analysis.md` – `docs/specs/07_security_spec.md` (the authoritative specs)
 
 This document resolves the open decisions the PRD flagged as blocking development
 (`01 §30`) and fixes the build sequence. It does not restate or supersede docs 00–07;

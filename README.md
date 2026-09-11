@@ -31,6 +31,19 @@ Kanbo is a focused Kanban board for small teams. It provides email and Google au
 
 Open http://localhost:3000, create an account, verify your email, create a project, and add your first task.
 
+## Repository layout
+
+```
+docs/specs/                 product, UX, system, database, API, tech-stack and security specs (authoritative)
+docs/superpowers/specs/     build decisions and amendments
+docs/superpowers/plans/     implementation plans (2026-09-11-kanbo-mvp/ is the current roadmap)
+src/app/                    Next.js App Router pages, server actions, /api/v1 route handlers
+src/components/             UI (shadcn primitives in ui/, feature components alongside)
+src/lib/                    shared logic: env, auth, api helpers, realtime, schemas
+supabase/migrations/        forward-only SQL migrations (schema, RLS, RPCs)
+ENGINEERING_RULES.md        engineering rules that apply to every change
+```
+
 ## Checks
 
 ```bash
