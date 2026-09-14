@@ -1,0 +1,45 @@
+name: backup
+
+on:
+  schedule:
+    - cron: "30 21 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dump-prod:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Dump schema and data
+        env:
+          DB_URL: ${{ secrets.PROD_DB_URL }}
+        run: |
+          supabase db dump --db-url "$DB_URL" -f schema.sql
+          supabase db dump --db-url "$DB_URL" --data-only -f data.sql
+      - name: Encrypt backup
+        env:
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          tar czf dump.tgz schema.sql data.sql
+          gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase "$PASSPHRASE" dump.tgz
+          rm -f schema.sql data.sql dump.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kanbo-prod-${{ github.run_id }}
+          path: dump.tgz.gpg
+          retention-days: 90
+
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping dev and staging so free projects do not pause
+        run: |
+          for pair in "${{ secrets.DEV_SUPABASE_URL }}|${{ secrets.DEV_SUPABASE_ANON_KEY }}" "${{ secrets.STAGING_SUPABASE_URL }}|${{ secrets.STAGING_SUPABASE_ANON_KEY }}"; do
+            url="${pair%%|*}"; key="${pair##*|}"
+            curl -fsS "$url/rest/v1/" -H "apikey: $key" -o /dev/null && echo "ok $url"
+          done
