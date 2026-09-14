@@ -2,6 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status as of 2026-09-15:** Tasks 1–9 are code-complete, tested (56/56 unit tests, typecheck, lint, coverage ≥70%, `npm run build`, bundle budget) and committed on `feat/foundation`. Nine steps remain unchecked because they require the user or live infrastructure this session can't touch:
+> - **Task 2 Step 2** — `rate_limits` table + `consume_rate_limit` RPC not yet applied to `kanbo-dev` (auto-mode blocked a direct DB write as a production-deploy action). Run `npm run db:push` yourself, or approve the equivalent Supabase MCP call.
+> - **Task 2 Step 7**, **Task 8 Step 5** — manual browser checks against `kanbo-dev`; blocked until the migration above lands.
+> - **Task 3 Step 3** (GitHub repo, `kanbo-staging`/`kanbo-prod`, Vercel project, OAuth clients, secrets) and **Step 5** (`vercel deploy`) — operator-only; repo currently has no git remote.
+> - **Task 4 Step 5**, **Task 5 Step 6**, **Task 6 Step 5**, **Task 7 Step 3** — need a pushed branch and live CI/Sentry/GitHub Actions to actually run against.
+>
+> Everything else — the code, the migrations as files, the tests, the workflow YAML, the docs — is done and in git.
+
 **Goal:** Every later sub-plan ends deployed to staging behind a green CI run: shared route-handler helper, Postgres-backed rate limiting, staging/prod Supabase projects, Vercel project in `bom1`, GitHub Actions CI with coverage + RLS isolation suite + secret scanning, Sentry + structured logs, nightly backups, HIBP password check, and the decisions recorded.
 
 **Architecture:** Route handlers become thin wrappers over `withApiHandler` (auth → origin → params → body → rate limit → handler → error map, with an `x-request-id` on every response). Rate limits are fixed-window counters in a Postgres table consumed through a `security definer` RPC callable only by the service role. RLS isolation is verified by a Vitest suite that runs two real authenticated clients against a hosted Supabase project (no Docker). Observability is Sentry (`@sentry/nextjs`) plus a tiny JSON logger with key redaction.
@@ -88,7 +96,7 @@ docs/superpowers/specs/2026-09-08-kanbo-build-decisions.md   (Task 9)
   Error-code map: `28000`→401 `UNAUTHENTICATED` · `P0002`→404 `NOT_FOUND` · `42501`→403 `FORBIDDEN` (404 `NOT_FOUND` when `projectScoped: true`) · `22023`→422 `VALIDATION_ERROR` · `23505`/`40001`→409 `CONFLICT` · anything else→500 `INTERNAL_ERROR` with `details: { requestId }`.
 - Every response carries header `x-request-id` (taken from the inbound `x-request-id` header if present, else `crypto.randomUUID()`).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 // src/lib/api/handler.test.ts
@@ -241,12 +249,12 @@ describe("mapRpcError", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `npx vitest run src/lib/api/handler.test.ts`
 Expected: FAIL — `Cannot find module './handler'`.
 
-- [ ] **Step 3: Implement the helper**
+- [x] **Step 3: Implement the helper**
 
 ```ts
 // src/lib/api/handler.ts
@@ -373,12 +381,12 @@ export function firstRow<T>(data: T | T[] | null): T | null {
 export const json = NextResponse.json;
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `npx vitest run src/lib/api/handler.test.ts`
 Expected: PASS (13 tests).
 
-- [ ] **Step 5: Refactor one route onto the helper (the hot path) and keep its behaviour**
+- [x] **Step 5: Refactor one route onto the helper (the hot path) and keep its behaviour**
 
 Replace the body of `src/app/api/v1/tasks/[taskId]/position/route.ts` with:
 
@@ -411,16 +419,16 @@ export const PATCH = withApiHandler(
 );
 ```
 
-- [ ] **Step 6: Refactor the remaining 8 routes the same way**
+- [x] **Step 6: Refactor the remaining 8 routes the same way**
 
 For each route file: keep its exact Zod schemas, RPC names/arguments, response shape and user-facing messages; replace the inline origin/auth/param/body/error boilerplate with `withApiHandler` + `mapRpcError`. Where a route previously mapped `42501` to 403 keep 403 (do **not** pass `projectScoped` yet — the RPCs cannot distinguish non-member from viewer until Sub-plan 2B.1 makes them raise `P0002` for non-members). Where a route previously returned 422 for an unknown error code, `mapRpcError` now returns 500 with a request id — that is the intended change (`03 §17`). GET handlers that take no body simply omit `body`.
 
-- [ ] **Step 7: Verify nothing else changed**
+- [x] **Step 7: Verify nothing else changed**
 
 Run: `npm run typecheck && npm run lint && npm run test`
 Expected: all pass. Then `npm run dev`, sign in, create a task, drag it, edit it, add a subtask, rename a column — every action still works and the network tab shows `x-request-id` on each API response.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/lib/api/handler.ts src/lib/api/handler.test.ts src/app/api/v1
@@ -453,7 +461,7 @@ git commit -m "refactor(api): share auth, validation and error mapping across ro
 
 **Security properties:** counters are server-side; the RPC is not callable by `authenticated` (a user must not be able to burn a teammate's quota by guessing their uuid); keys are `${name}:${subject}` built by the server; failure of the limiter (RPC error) **fails closed** for writes (429) — a broken limiter must not become an unlimited API.
 
-- [ ] **Step 1: Write the migration**
+- [x] **Step 1: Write the migration**
 
 ```sql
 -- supabase/migrations/202609110001_rate_limits.sql
@@ -512,7 +520,7 @@ grant execute on function public.consume_rate_limit(text, integer, integer) to s
 Run: `npm run db:push`
 Expected: `Applying migration 202609110001_rate_limits.sql... Finished`.
 
-- [ ] **Step 3: Write the failing tests**
+- [x] **Step 3: Write the failing tests**
 
 ```ts
 // src/lib/api/rate-limit.test.ts
@@ -601,12 +609,12 @@ describe("withApiHandler rate limiting", () => {
 });
 ```
 
-- [ ] **Step 4: Run the tests to verify they fail**
+- [x] **Step 4: Run the tests to verify they fail**
 
 Run: `npx vitest run src/lib/api`
 Expected: FAIL — `./rate-limit` not found; handler tests fail on missing headers.
 
-- [ ] **Step 5: Implement**
+- [x] **Step 5: Implement**
 
 ```ts
 // src/lib/supabase/admin.ts
@@ -691,7 +699,7 @@ and change `respond`/`withRequestId` to accept an optional extra-headers map tha
 
 Then declare limits on routes: every `POST`/`PATCH`/`DELETE` under `src/app/api/v1/**` gets `rateLimit: RATE_LIMITS.writes`; every `GET` gets `rateLimit: RATE_LIMITS.reads`.
 
-- [ ] **Step 6: Run tests, typecheck, lint**
+- [x] **Step 6: Run tests, typecheck, lint**
 
 Run: `npx vitest run src/lib/api && npm run typecheck && npm run lint`
 Expected: PASS.
@@ -700,7 +708,7 @@ Expected: PASS.
 
 `npm run dev`; in the browser console run `for (let i=0;i<105;i++) fetch('/api/v1/projects/<id>', {method:'PATCH', headers:{'content-type':'application/json'}, body: JSON.stringify({name:'x', description:null, timezone:'UTC'})}).then(r=>console.log(r.status))` — the last few log `429`; `X-RateLimit-Remaining` decreases.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add supabase/migrations/202609110001_rate_limits.sql src/lib/supabase/admin.ts src/lib/api src/app/api/v1
@@ -719,7 +727,7 @@ git commit -m "feat(api): add Postgres-backed rate limiting to write and read en
 - Produces: three named environments consumed by Task 4 (CI secrets) and Task 7 (backup).
 - Environment variable names (all environments): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_SENTRY_DSN`, `SUPABASE_SERVICE_ROLE_KEY`, `SENTRY_AUTH_TOKEN`, `CRON_SECRET`, `UNSUBSCRIBE_SECRET`, `EMAIL_PROVIDER` (= `console` until M4 unblocks).
 
-- [ ] **Step 1: Add `vercel.ts`**
+- [x] **Step 1: Add `vercel.ts`**
 
 ```bash
 npm install --save-dev @vercel/config
@@ -736,7 +744,7 @@ export const config: VercelConfig = {
 };
 ```
 
-- [ ] **Step 2: Extend `.env.example`**
+- [x] **Step 2: Extend `.env.example`**
 
 Append under "Server only":
 
@@ -757,7 +765,7 @@ The repository currently has **no git remote**. In order:
 5. **Vercel:** `npm i -g vercel`, `vercel link` (new project `kanbo`, root directory `.`), connect the GitHub repo. Environment variables: *Preview* → `kanbo-staging` values with `NEXT_PUBLIC_SITE_URL` set per-branch by Vercel's `VERCEL_URL` (set `NEXT_PUBLIC_SITE_URL=https://kanbo-staging.vercel.app` for the persistent staging alias); *Production* → `kanbo-prod` values, `NEXT_PUBLIC_SITE_URL=https://<prod-domain>`. Generate `CRON_SECRET` and `UNSUBSCRIBE_SECRET` with `openssl rand -base64 32` (different per environment).
 6. **GitHub Actions secrets** (used by Task 4/7): `STAGING_SUPABASE_URL`, `STAGING_SUPABASE_ANON_KEY`, `STAGING_SUPABASE_SERVICE_ROLE_KEY`, `STAGING_PROJECT_REF`, `STAGING_DB_PASSWORD`, `SUPABASE_ACCESS_TOKEN` (personal access token from the Supabase dashboard), `PROD_DB_URL` (connection string, session-mode pooler), `BACKUP_PASSPHRASE`, `DEV_SUPABASE_URL`, `DEV_SUPABASE_ANON_KEY`.
 
-- [ ] **Step 4: Update `README.md`**
+- [x] **Step 4: Update `README.md`**
 
 Replace the "Deployment" section with: the three environments table (dev / staging / prod → Supabase project, Vercel target, who pushes migrations), the rule that previews never point at prod, the env var list above, and the per-environment Auth redirect URLs.
 
@@ -765,7 +773,7 @@ Replace the "Deployment" section with: the three environments table (dev / stagi
 
 `vercel deploy` from the branch → preview URL boots, `/login` works against staging (create a throwaway account, verify email, create a project). `vercel inspect <url>` shows region `bom1`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add vercel.ts .env.example README.md package.json package-lock.json
@@ -783,7 +791,7 @@ git commit -m "chore: add Vercel config in bom1 and document the three environme
 **Interfaces:**
 - Produces: npm scripts `test:coverage`, `test:rls` (config lands in Task 5 — script added here so CI is final), `size`; GitHub check `ci`.
 
-- [ ] **Step 1: `.gitattributes`**
+- [x] **Step 1: `.gitattributes`**
 
 ```
 * text=auto eol=lf
@@ -793,7 +801,7 @@ git commit -m "chore: add Vercel config in bom1 and document the three environme
 
 Run `git add --renormalize .` and confirm `git status` shows no content changes beyond line endings (if it does, commit them separately as `chore: normalise line endings`).
 
-- [ ] **Step 2: Coverage**
+- [x] **Step 2: Coverage**
 
 ```bash
 npm install --save-dev @vitest/coverage-v8@^5
@@ -821,7 +829,7 @@ Scripts in `package.json`:
 
 Run `npm run test:coverage`; if the threshold fails today, lower `branches` to the current value minus nothing — do **not** lower `lines` below 70; instead add tests for the uncovered `src/lib` file(s) until 70 % holds (the plan expects `src/lib/realtime/use-project-channel.ts` to be the gap — mock `createBrowserClient` and test subscribe/unsubscribe).
 
-- [ ] **Step 3: Bundle-size script**
+- [x] **Step 3: Bundle-size script**
 
 ```js
 // scripts/check-bundle-size.mjs
@@ -855,7 +863,7 @@ console.log(`Board route first-load JS: ${kb} KB gzipped (budget ${BUDGET_BYTES 
 
 Run `npm run build && npm run size` — expected: prints the size and exits 0.
 
-- [ ] **Step 4: Workflow**
+- [x] **Step 4: Workflow**
 
 ```yaml
 # .github/workflows/ci.yml
@@ -928,7 +936,7 @@ jobs:
 
 Push the branch, open a draft PR to `main`. Expected: `secrets`, `quality`, `migrations` green; `rls` red (no config yet). Temporarily break a unit test locally, push, confirm `quality` goes red, revert.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .github/workflows/ci.yml .gitattributes scripts/check-bundle-size.mjs vitest.config.mts package.json package-lock.json .prettierignore
@@ -957,7 +965,7 @@ git commit -m "ci: add typecheck, lint, coverage, audit, secret scan, bundle bud
   ```
   Reused verbatim by 2B–2G for every new table.
 
-- [ ] **Step 1: RLS config**
+- [x] **Step 1: RLS config**
 
 ```ts
 // vitest.rls.config.mts
@@ -1002,7 +1010,7 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 In `vitest.config.mts` add `"src/test/rls/**"` to `exclude`.
 
-- [ ] **Step 2: Fixture**
+- [x] **Step 2: Fixture**
 
 ```ts
 // src/test/rls/setup.ts
@@ -1065,7 +1073,7 @@ export async function seedIsolationFixture(): Promise<IsolationFixture> {
 }
 ```
 
-- [ ] **Step 3: Failing isolation tests**
+- [x] **Step 3: Failing isolation tests**
 
 ```ts
 // src/test/rls/isolation.test.ts
@@ -1149,7 +1157,7 @@ describe("every public table has RLS enabled (07 §18.2)", () => {
 });
 ```
 
-- [ ] **Step 4: Migration for the RLS audit function**
+- [x] **Step 4: Migration for the RLS audit function**
 
 ```sql
 -- supabase/migrations/202609110002_rls_audit.sql
@@ -1168,7 +1176,7 @@ grant execute on function public.tables_without_rls() to service_role;
 
 Run `npm run db:push`.
 
-- [ ] **Step 5: Run the suite**
+- [x] **Step 5: Run the suite**
 
 Run: `npm run test:rls`
 Expected: all PASS. If `activity` update/delete returns rows, the RLS policies are wrong — stop and fix the policy (this is the point of the suite), never the test.
@@ -1199,7 +1207,7 @@ git commit -m "test: add RLS isolation suite run against a hosted Supabase proje
   ```
   Redacted keys (case-insensitive substring match): `token`, `password`, `secret`, `authorization`, `cookie`, `email`, `body`.
 
-- [ ] **Step 1: Failing logger tests**
+- [x] **Step 1: Failing logger tests**
 
 ```ts
 // src/lib/log.test.ts
@@ -1235,9 +1243,9 @@ describe("log", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure** — `npx vitest run src/lib/log.test.ts` → FAIL (module missing).
+- [x] **Step 2: Run to verify failure** — `npx vitest run src/lib/log.test.ts` → FAIL (module missing).
 
-- [ ] **Step 3: Implement logger**
+- [x] **Step 3: Implement logger**
 
 ```ts
 // src/lib/log.ts
@@ -1263,7 +1271,7 @@ export function log(level: LogLevel, event: string, fields: LogFields = {}): voi
 }
 ```
 
-- [ ] **Step 4: Sentry**
+- [x] **Step 4: Sentry**
 
 ```bash
 npm install @sentry/nextjs
@@ -1355,7 +1363,7 @@ In `src/app/error.tsx`: if `error.digest` exists render "Reference: {digest}" so
 
 `npm run test && npm run typecheck && npm run lint && npm run build` pass. With a real DSN in `.env.local`, add a temporary `throw new Error("sentry smoke")` to a route, hit it, confirm the event in Sentry with tag `requestId`, remove the throw. Operator: create the Sentry project (free tier), set `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` on Vercel (preview + production).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add instrumentation.ts instrumentation-client.ts sentry.server.config.ts sentry.edge.config.ts src/app/global-error.tsx src/app/error.tsx src/lib/log.ts src/lib/log.test.ts src/lib/api/handler.ts src/lib/security/headers.ts next.config.ts .env.example package.json package-lock.json
@@ -1369,7 +1377,7 @@ git commit -m "feat(observability): add Sentry and structured JSON logging with 
 **Files:**
 - Create: `.github/workflows/backup.yml`, `docs/runbook.md`
 
-- [ ] **Step 1: Workflow**
+- [x] **Step 1: Workflow**
 
 ```yaml
 # .github/workflows/backup.yml
@@ -1415,7 +1423,7 @@ jobs:
           done
 ```
 
-- [ ] **Step 2: Runbook**
+- [x] **Step 2: Runbook**
 
 `docs/runbook.md` sections: *Environments* (table), *Restore drill* (download artifact → `gpg --decrypt` → `tar xzf` → `psql "$DEV_DB_URL" -f schema.sql` on a **reset** `kanbo-dev` (`supabase db reset --linked` first) → `psql -f data.sql` → smoke-test login), *Rotating secrets* (which secret lives where, from `07 §8`), *Incident: snapshot job missed* (placeholder pointing at 2G.1 once it exists), *Rate limit tuning* (`RATE_LIMITS` in `src/lib/api/rate-limit.ts`).
 
@@ -1423,7 +1431,7 @@ jobs:
 
 `workflow_dispatch` the backup once → artifact appears; download, decrypt locally, confirm `schema.sql` contains `create table public.tasks`. Log the first restore drill date in the runbook.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .github/workflows/backup.yml docs/runbook.md
@@ -1443,7 +1451,7 @@ git commit -m "ci: add nightly encrypted prod dump and keep-alive pings"
 
 **Security properties:** only the first 5 hex chars of the SHA-1 leave the server; request uses `Add-Padding: true`; 2 s timeout; any failure returns `false` and logs `auth.breach_check_unavailable` (fail-open — an HIBP outage must not block signup, `07 §2`); password max length 128 enforced by Zod before hashing; the check runs before the Supabase call in both success and failure paths so response timing does not reveal account existence.
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```ts
 // src/lib/auth/breach-check.test.ts
@@ -1481,9 +1489,9 @@ describe("isBreachedPassword", () => {
 
 In `src/lib/auth/schemas.test.ts` add: a 129-character password fails `passwordSchema`; a 128-character one passes.
 
-- [ ] **Step 2: Run to verify failure** — `npx vitest run src/lib/auth` → FAIL.
+- [x] **Step 2: Run to verify failure** — `npx vitest run src/lib/auth` → FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 // src/lib/auth/breach-check.ts
@@ -1533,11 +1541,11 @@ In `signUp` and `resetPassword` (`src/app/actions/auth.ts`), after `safeParse` s
   }
 ```
 
-- [ ] **Step 4: Run tests, typecheck, lint** — all PASS.
+- [x] **Step 4: Run tests, typecheck, lint** — all PASS.
 
 - [ ] **Step 5: Manual check** — `npm run dev`, sign up with `password123` → inline error under Password; sign up with a long random passphrase → proceeds to verify-email.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/lib/auth src/app/actions/auth.ts
@@ -1551,7 +1559,7 @@ git commit -m "feat(auth): reject breached passwords via HIBP k-anonymity range 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-09-08-kanbo-build-decisions.md`, `README.md`
 
-- [ ] **Step 1: Append a dated section to the build-decisions doc**
+- [x] **Step 1: Append a dated section to the build-decisions doc**
 
 ```markdown
 ## Amendments — 2026-09-11 (approved with the MVP roadmap)
@@ -1569,9 +1577,9 @@ git commit -m "feat(auth): reject breached passwords via HIBP k-anonymity range 
 | S7 | Full gap register: `docs/superpowers/plans/2026-09-11-kanbo-mvp/00-master-roadmap.md §2`. |
 ```
 
-- [ ] **Step 2: README** — add a "Checks" line for `npm run test:rls` (needs `.env.test`) and `npm run size`.
+- [x] **Step 2: README** — add a "Checks" line for `npm run test:rls` (needs `.env.test`) and `npm run size`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/superpowers/specs/2026-09-08-kanbo-build-decisions.md README.md
