@@ -50,7 +50,10 @@ ENGINEERING_RULES.md        engineering rules that apply to every change
 npm run typecheck
 npm run lint
 npm run test
+npm run test:coverage
+npm run test:rls
 npm run build
+npm run size
 ```
 
 ## Database migrations
@@ -59,4 +62,14 @@ Migrations live in `supabase/migrations/`. They establish the core data model, r
 
 ## Deployment
 
-Configure the same environment variables in the hosting provider, set `NEXT_PUBLIC_SITE_URL` to the deployed origin, and add its `/auth/callback` URL to Supabase Auth redirect settings. Apply migrations to each Supabase environment before deploying its matching application environment.
+| Environment | Supabase project | Vercel target | Migration owner |
+| --- | --- | --- | --- |
+| Development | `kanbo-dev` | Local development | Developers |
+| Staging | `kanbo-staging` | Preview and staging alias | CI/operator |
+| Production | `kanbo-prod` | Production | Release operator |
+
+Previews must never point at production data. Apply migrations to the matching Supabase project before deploying its application.
+
+Set these variables for every environment: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_SENTRY_DSN`, `SUPABASE_SERVICE_ROLE_KEY`, `SENTRY_AUTH_TOKEN`, `CRON_SECRET`, `UNSUBSCRIBE_SECRET`, and `EMAIL_PROVIDER` (currently `console`). Keep server-only variables out of browser-prefixed names.
+
+In each Supabase project, set the matching Site URL and allow `<origin>/auth/callback` and `<origin>/auth/confirm`. Staging must also allow `https://*-<vercel-team>.vercel.app/auth/callback` for preview deployments.
