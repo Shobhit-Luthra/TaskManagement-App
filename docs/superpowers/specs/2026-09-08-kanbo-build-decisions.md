@@ -8,6 +8,20 @@ This document resolves the open decisions the PRD flagged as blocking developmen
 (`01 §30`) and fixes the build sequence. It does not restate or supersede docs 00–07;
 those remain the source of truth for requirements, schema, API and security.
 
+## Amendments — 2026-09-14 (MVP roadmap)
+
+| ID | Decision |
+| --- | --- |
+| A1 | Transactional business rules live in Postgres `security definer` RPCs; route handlers remain thin through `src/lib/api/handler.ts`. |
+| M6 | Free tier only: nightly encrypted `supabase db dump` artifacts provide a 24-hour RPO; free projects are kept awake by scheduled pings; HIBP range checks replace built-in leaked-password protection. |
+| S1 | Scheduled work uses `pg_cron`; email work calls protected `/api/cron/*` handlers through `pg_net` and `CRON_SECRET`. |
+| S2 | Rate limiting uses Postgres fixed-window counters through service-role-only `consume_rate_limit`. |
+| S3 | RLS acceptance is a Vitest integration suite against a hosted development/staging project, never a local Docker stack. |
+| S4 | Weekly digests are per project at Monday 09:00 in `projects.timezone`. |
+| S5 | Task watchers are creator, assignee, and commenters. |
+| S6 | Commits use the user’s identity and contain no AI co-author or session trailers. |
+| S7 | The complete resolved gap register is `docs/superpowers/plans/2026-09-11-kanbo-mvp/00-master-roadmap.md` §2. |
+
 ## Resolved open decisions
 
 | ID | Question | Decision |
