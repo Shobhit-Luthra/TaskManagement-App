@@ -1,6 +1,9 @@
 export function securityHeaders(supabaseUrl: string) {
   const origin = new URL(supabaseUrl).origin;
   const websocketOrigin = origin.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+  const sentryOrigin = process.env.NEXT_PUBLIC_SENTRY_DSN
+    ? ` ${new URL(process.env.NEXT_PUBLIC_SENTRY_DSN).origin}`
+    : "";
   // Next's development runtime uses inline bootstrap code and eval-based source maps.
   // Blocking these prevents React from hydrating, leaving client UI frozen on its
   // server-rendered loading state. Production keeps eval disabled.
@@ -12,7 +15,7 @@ export function securityHeaders(supabaseUrl: string) {
     "default-src 'self'",
     "base-uri 'self'",
     "frame-ancestors 'none'",
-    `connect-src 'self' ${origin} ${websocketOrigin}`,
+    `connect-src 'self' ${origin} ${websocketOrigin}${sentryOrigin}`,
     "img-src 'self' data: https:",
     "style-src 'self' 'unsafe-inline'",
     scriptSource,

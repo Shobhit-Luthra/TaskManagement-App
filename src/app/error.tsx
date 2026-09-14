@@ -4,7 +4,7 @@ import { AlertTriangle, RotateCcw } from "lucide-react";
 
 export default function ErrorPage({
   reset,
-  error: _error,
+  error,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
@@ -18,6 +18,9 @@ export default function ErrorPage({
       <p className="text-muted-foreground mt-3">
         Try again. If the problem continues, return to your projects and try once more later.
       </p>
+      {error.digest && (
+        <p className="text-muted-foreground mt-2 text-sm">Reference: {error.digest}</p>
+      )}
       <button
         type="button"
         onClick={reset}
