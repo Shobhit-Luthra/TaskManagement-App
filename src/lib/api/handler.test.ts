@@ -15,6 +15,11 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({ auth: { getUser } }),
 }));
 
+const { consumeRateLimit } = vi.hoisted(() => ({ consumeRateLimit: vi.fn() }));
+vi.mock("@/lib/api/rate-limit", () => ({
+  consumeRateLimit: (...args: unknown[]) => consumeRateLimit(...args),
+}));
+
 import { mapRpcError, withApiHandler } from "./handler";
 
 function request(
@@ -118,6 +123,50 @@ describe("withApiHandler", () => {
     expect(json.error.code).toBe("INTERNAL_ERROR");
     expect(json.error.details).toEqual({ requestId: "req-500" });
     expect(JSON.stringify(json)).not.toContain("hunter2");
+  });
+});
+
+describe("withApiHandler rate limiting", () => {
+  beforeEach(() => {
+    getUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    consumeRateLimit.mockReset();
+  });
+
+  it("sets rate-limit headers when allowed", async () => {
+    consumeRateLimit.mockResolvedValue({
+      allowed: true,
+      remaining: 41,
+      resetAt: new Date(1_800_000_000_000),
+    });
+    const route = withApiHandler(
+      { rateLimit: { name: "writes", limit: 100, windowSeconds: 60 } },
+      async () => new Response("ok"),
+    );
+    const response = await route(request(), params());
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-RateLimit-Limit")).toBe("100");
+    expect(response.headers.get("X-RateLimit-Remaining")).toBe("41");
+    expect(response.headers.get("X-RateLimit-Reset")).toBe("1800000000");
+    expect(consumeRateLimit).toHaveBeenCalledWith(
+      { name: "writes", limit: 100, windowSeconds: 60 },
+      "user-1",
+    );
+  });
+
+  it("returns 429 when the limit is exhausted", async () => {
+    consumeRateLimit.mockResolvedValue({
+      allowed: false,
+      remaining: 0,
+      resetAt: new Date(1_800_000_000_000),
+    });
+    const route = withApiHandler(
+      { rateLimit: { name: "writes", limit: 100, windowSeconds: 60 } },
+      async () => new Response("ok"),
+    );
+    const response = await route(request(), params());
+    expect(response.status).toBe(429);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "RATE_LIMITED" } });
+    expect(response.headers.get("X-RateLimit-Remaining")).toBe("0");
   });
 });
 

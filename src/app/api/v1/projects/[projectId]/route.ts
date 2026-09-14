@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { json, mapRpcError, withApiHandler } from "@/lib/api/handler";
+import { RATE_LIMITS } from "@/lib/api/rate-limit";
 
 const updateSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -9,6 +10,7 @@ const updateSchema = z.object({
 
 export const PATCH = withApiHandler(
   {
+    rateLimit: RATE_LIMITS.writes,
     params: z.object({ projectId: z.string().uuid() }),
     body: updateSchema,
     notFoundMessage: "Project not found.",

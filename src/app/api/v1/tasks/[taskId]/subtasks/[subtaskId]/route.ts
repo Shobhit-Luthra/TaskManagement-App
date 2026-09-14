@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { json, mapRpcError, withApiHandler } from "@/lib/api/handler";
+import { RATE_LIMITS } from "@/lib/api/rate-limit";
 import { updateSubtaskSchema } from "@/lib/tasks/schemas";
 
 export const PATCH = withApiHandler(
   {
+    rateLimit: RATE_LIMITS.writes,
     params: z.object({ taskId: z.string().uuid(), subtaskId: z.string().uuid() }),
     body: updateSubtaskSchema,
     notFoundMessage: "Subtask not found.",
@@ -24,6 +26,7 @@ export const PATCH = withApiHandler(
 
 export const DELETE = withApiHandler(
   {
+    rateLimit: RATE_LIMITS.writes,
     params: z.object({ taskId: z.string().uuid(), subtaskId: z.string().uuid() }),
     notFoundMessage: "Subtask not found.",
     unauthenticatedMessage: "Sign in to delete subtasks.",

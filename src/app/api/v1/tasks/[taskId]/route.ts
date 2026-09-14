@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { apiError } from "@/lib/api/response";
 import { firstRow, json, mapRpcError, withApiHandler } from "@/lib/api/handler";
+import { RATE_LIMITS } from "@/lib/api/rate-limit";
 import { updateTaskSchema } from "@/lib/tasks/schemas";
 
 export const PATCH = withApiHandler(
   {
+    rateLimit: RATE_LIMITS.writes,
     params: z.object({ taskId: z.string().uuid() }),
     body: updateTaskSchema,
     notFoundMessage: "Task not found.",
@@ -29,6 +31,7 @@ export const PATCH = withApiHandler(
 
 export const DELETE = withApiHandler(
   {
+    rateLimit: RATE_LIMITS.writes,
     params: z.object({ taskId: z.string().uuid() }),
     notFoundMessage: "Task not found.",
     unauthenticatedMessage: "Sign in to delete tasks.",

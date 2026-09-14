@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { json, mapRpcError, withApiHandler } from "@/lib/api/handler";
+import { RATE_LIMITS } from "@/lib/api/rate-limit";
 import { createColumnSchema } from "@/lib/projects/schemas";
 
 export const POST = withApiHandler(
   {
+    rateLimit: RATE_LIMITS.writes,
     params: z.object({ projectId: z.string().uuid() }),
     body: createColumnSchema,
     notFoundMessage: "Project not found.",

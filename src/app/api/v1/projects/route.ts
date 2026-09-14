@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiError } from "@/lib/api/response";
 import { json, mapRpcError, withApiHandler } from "@/lib/api/handler";
+import { RATE_LIMITS } from "@/lib/api/rate-limit";
 import { createProjectSchema, createdProjectSchema } from "@/lib/projects/schemas";
 
 const querySchema = z.object({
@@ -10,7 +11,7 @@ const querySchema = z.object({
 });
 
 export const GET = withApiHandler(
-  { unauthenticatedMessage: "Sign in to view projects." },
+  { unauthenticatedMessage: "Sign in to view projects.", rateLimit: RATE_LIMITS.reads },
   async ({ request, supabase, requestId }) => {
     const query = querySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
     if (!query.success) {
@@ -48,6 +49,7 @@ export const GET = withApiHandler(
 
 export const POST = withApiHandler(
   {
+    rateLimit: RATE_LIMITS.writes,
     body: createProjectSchema,
     unauthenticatedMessage: "Sign in to create a project.",
     validationMessage: "Invalid project details.",

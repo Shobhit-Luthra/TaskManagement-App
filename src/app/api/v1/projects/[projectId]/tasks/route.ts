@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { apiError } from "@/lib/api/response";
 import { firstRow, json, mapRpcError, withApiHandler } from "@/lib/api/handler";
+import { RATE_LIMITS } from "@/lib/api/rate-limit";
 import { createTaskSchema } from "@/lib/tasks/schemas";
 
 export const GET = withApiHandler(
   {
+    rateLimit: RATE_LIMITS.reads,
     params: z.object({ projectId: z.string().uuid() }),
     notFoundMessage: "Project not found.",
     unauthenticatedMessage: "Sign in to view tasks.",
@@ -26,6 +28,7 @@ export const GET = withApiHandler(
 
 export const POST = withApiHandler(
   {
+    rateLimit: RATE_LIMITS.writes,
     params: z.object({ projectId: z.string().uuid() }),
     body: createTaskSchema,
     notFoundMessage: "Project not found.",

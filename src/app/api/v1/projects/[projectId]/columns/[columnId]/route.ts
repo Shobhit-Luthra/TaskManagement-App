@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { json, mapRpcError, withApiHandler } from "@/lib/api/handler";
+import { RATE_LIMITS } from "@/lib/api/rate-limit";
 import { updateColumnSchema } from "@/lib/projects/schemas";
 
 export const PATCH = withApiHandler(
   {
+    rateLimit: RATE_LIMITS.writes,
     params: z.object({ projectId: z.string().uuid(), columnId: z.string().uuid() }),
     body: updateColumnSchema,
     notFoundMessage: "Column not found.",

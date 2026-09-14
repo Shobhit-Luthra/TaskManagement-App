@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { apiError } from "@/lib/api/response";
 import { firstRow, json, mapRpcError, withApiHandler } from "@/lib/api/handler";
+import { RATE_LIMITS } from "@/lib/api/rate-limit";
 import { moveTaskSchema } from "@/lib/tasks/schemas";
 
 export const PATCH = withApiHandler(
   {
+    rateLimit: RATE_LIMITS.writes,
     params: z.object({ taskId: z.string().uuid() }),
     body: moveTaskSchema,
     notFoundMessage: "Task not found.",

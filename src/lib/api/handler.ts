@@ -3,6 +3,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { z } from "zod";
 import { apiError, type ApiErrorCode } from "@/lib/api/response";
+import { consumeRateLimit, type RateLimitPolicy } from "@/lib/api/rate-limit";
+import { log } from "@/lib/log";
+import * as Sentry from "@sentry/nextjs";
 import { clientEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,13 +24,19 @@ export type HandlerOptions<TBody, TParams> = {
   notFoundMessage?: string;
   unauthenticatedMessage?: string;
   validationMessage?: string;
+  rateLimit?: RateLimitPolicy;
 };
 
 type RouteContext = { params: Promise<Record<string, string>> };
 
-function withRequestId(response: Response, requestId: string): Response {
+function withRequestId(
+  response: Response,
+  requestId: string,
+  extraHeaders?: Record<string, string>,
+): Response {
   const headers = new Headers(response.headers);
   headers.set("x-request-id", requestId);
+  for (const [name, value] of Object.entries(extraHeaders ?? {})) headers.set(name, value);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -41,7 +50,8 @@ export function withApiHandler<TBody = undefined, TParams = Record<string, never
 ) {
   return async (request: NextRequest, context: RouteContext): Promise<Response> => {
     const requestId = request.headers.get("x-request-id") ?? randomUUID();
-    const respond = (response: Response) => withRequestId(response, requestId);
+    const respond = (response: Response, extraHeaders?: Record<string, string>) =>
+      withRequestId(response, requestId, extraHeaders);
     try {
       const origin = request.headers.get("origin");
       if (origin && origin !== new URL(clientEnv.NEXT_PUBLIC_SITE_URL).origin) {
@@ -86,18 +96,29 @@ export function withApiHandler<TBody = undefined, TParams = Record<string, never
         );
       }
 
+      let rateHeaders: Record<string, string> | undefined;
+      if (options.rateLimit) {
+        const result = await consumeRateLimit(options.rateLimit, auth.user.id);
+        rateHeaders = {
+          "X-RateLimit-Limit": String(options.rateLimit.limit),
+          "X-RateLimit-Remaining": String(result.remaining),
+          "X-RateLimit-Reset": String(Math.floor(result.resetAt.getTime() / 1000)),
+        };
+        if (!result.allowed) {
+          return respond(
+            apiError(429, "RATE_LIMITED", "Too many requests. Try again shortly."),
+            rateHeaders,
+          );
+        }
+      }
+
       return respond(
         await handler({ request, user: auth.user, supabase, body, params, requestId }),
+        rateHeaders,
       );
     } catch (error) {
-      console.error(
-        JSON.stringify({
-          level: "error",
-          event: "api.unhandled",
-          requestId,
-          name: error instanceof Error ? error.name : "unknown",
-        }),
-      );
+      log("error", "api.unhandled", { requestId, route: new URL(request.url).pathname });
+      Sentry.captureException(error, { tags: { requestId } });
       return respond(
         apiError(
           500,
