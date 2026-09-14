@@ -8,6 +8,10 @@ describe("passwordSchema", () => {
   it("accepts a 10+ character password", () => {
     expect(passwordSchema.safeParse("abcdefghij").success).toBe(true);
   });
+  it("accepts at most 128 characters", () => {
+    expect(passwordSchema.safeParse("a".repeat(128)).success).toBe(true);
+    expect(passwordSchema.safeParse("a".repeat(129)).success).toBe(false);
+  });
 });
 
 describe("signUpSchema", () => {

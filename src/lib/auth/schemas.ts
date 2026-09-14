@@ -2,7 +2,10 @@ import { z } from "zod";
 
 export const emailSchema = z.string().trim().toLowerCase().email("Enter a valid email address");
 
-export const passwordSchema = z.string().min(10, "Use at least 10 characters").max(200);
+export const passwordSchema = z
+  .string()
+  .min(10, "Use at least 10 characters")
+  .max(128, "Passwords are limited to 128 characters");
 
 export const displayNameSchema = z
   .string()

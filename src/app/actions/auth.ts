@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { mapAuthError } from "@/lib/auth/errors";
+import { isBreachedPassword } from "@/lib/auth/breach-check";
 import {
   resetPasswordSchema,
   resetRequestSchema,
@@ -33,6 +34,13 @@ function safeNext(value: FormDataEntryValue | null): string {
 export async function signUp(_: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = signUpSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationState(parsed.error);
+  if (await isBreachedPassword(parsed.data.password)) {
+    return {
+      ok: false,
+      message: "Please correct the highlighted fields.",
+      fieldErrors: { password: "This password appeared in a data breach. Choose another." },
+    };
+  }
   const supabase = await createClient();
   const { error } = await supabase.auth.signUp({
     email: parsed.data.email,
@@ -77,6 +85,13 @@ export async function requestPasswordReset(
 export async function resetPassword(_: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = resetPasswordSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationState(parsed.error);
+  if (await isBreachedPassword(parsed.data.password)) {
+    return {
+      ok: false,
+      message: "Please correct the highlighted fields.",
+      fieldErrors: { password: "This password appeared in a data breach. Choose another." },
+    };
+  }
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
   if (error) return { ok: false, message: mapAuthError(error) };
