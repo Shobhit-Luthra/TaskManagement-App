@@ -15,4 +15,17 @@ describe("invitationEmail", () => {
     expect(result.html).toContain("https://kanbo.example/invite/abc123");
     expect(result.html).not.toContain("<script");
   });
+
+  it("escapes html in inviterDisplayName and acceptUrl", () => {
+    const result = invitationEmail({
+      projectName: "My Project",
+      inviterDisplayName: '<script>alert("xss")</script>',
+      role: "member",
+      acceptUrl: 'https://kanbo.example/invite?token="bad"',
+    });
+    expect(result.html).not.toContain("<script");
+    expect(result.html).toContain("&lt;script&gt;");
+    expect(result.html).not.toContain('token="bad"');
+    expect(result.html).toContain("token=&quot;bad&quot;");
+  });
 });
