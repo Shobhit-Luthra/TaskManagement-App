@@ -2,9 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Status as of 2026-09-15:** Tasks 1–9 are code-complete, tested (56/56 unit tests, typecheck, lint, coverage ≥70%, `npm run build`, bundle budget) and committed on `feat/foundation`. Nine steps remain unchecked because they require the user or live infrastructure this session can't touch:
-> - **Task 2 Step 2** — `rate_limits` table + `consume_rate_limit` RPC not yet applied to `kanbo-dev` (auto-mode blocked a direct DB write as a production-deploy action). Run `npm run db:push` yourself, or approve the equivalent Supabase MCP call.
-> - **Task 2 Step 7**, **Task 8 Step 5** — manual browser checks against `kanbo-dev`; blocked until the migration above lands.
+> **Status as of 2026-09-15 (updated):** Tasks 1–9 are code-complete and tested. The three pending migrations (`202609100001_realtime`, `202609110001_rate_limits`, `202609110002_rls_audit`) were applied to `kanbo-dev` via the Supabase MCP tool this session (Task 2 Step 2 unblocked). Running the RLS isolation suite for real (Task 5 Step 5) against the live database then surfaced a genuine, pre-existing correctness bug — see below — which is now fixed and re-verified (12/12 RLS tests pass against `kanbo-dev`).
+>
+> **Bug found and fixed this session:** every RPC declaring `returns table (id uuid, ...)` (and `create_task`'s own `"position"` column) had unqualified `where id = ...` / `min(position)` references inside the function body, which are ambiguous against the plpgsql OUT parameter of the same name — Postgres raised `column reference "id"/"position" is ambiguous` on **every call**, breaking `create_task`, `move_task`, `update_task`, `create_subtask`, `update_subtask`, `update_project_column`, and `update_project` against the real database (unit tests never caught it because RPCs are mocked there). Fixed via forward-only migrations `202609150001_fix_ambiguous_id_refs.sql` and `202609150002_fix_ambiguous_position_ref.sql`, applied to `kanbo-dev`. This means the "Done" status for board drag-and-drop, task editing, and subtasks in the master roadmap's §1 table was **not actually exercised against live Postgres** before now — worth a manual click-through once the dev server is up, as extra confirmation alongside the passing RLS suite.
+>
+> Remaining steps still blocked on the user / infra this session can't touch:
+> - **Task 2 Step 7**, **Task 8 Step 5** — manual browser checks against `kanbo-dev` (now unblocked infra-wise, just need a human at a browser).
 > - **Task 3 Step 3** (GitHub repo, `kanbo-staging`/`kanbo-prod`, Vercel project, OAuth clients, secrets) and **Step 5** (`vercel deploy`) — operator-only; repo currently has no git remote.
 > - **Task 4 Step 5**, **Task 5 Step 6**, **Task 6 Step 5**, **Task 7 Step 3** — need a pushed branch and live CI/Sentry/GitHub Actions to actually run against.
 >
@@ -515,10 +518,9 @@ revoke all on function public.consume_rate_limit(text, integer, integer) from au
 grant execute on function public.consume_rate_limit(text, integer, integer) to service_role;
 ```
 
-- [ ] **Step 2: Apply it to `kanbo-dev`**
+- [x] **Step 2: Apply it to `kanbo-dev`**
 
-Run: `npm run db:push`
-Expected: `Applying migration 202609110001_rate_limits.sql... Finished`.
+Applied via Supabase MCP (`mcp__supabase__apply_migration`) 2026-09-15, since `npm run db:push` requires the interactive Supabase CLI login this session doesn't have. Confirmed present in `mcp__supabase__list_migrations`; RLS suite's "`consume_rate_limit` is not callable by `authenticated`" test passes.
 
 - [x] **Step 3: Write the failing tests**
 
