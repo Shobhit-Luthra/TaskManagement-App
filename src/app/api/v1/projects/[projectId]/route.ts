@@ -24,7 +24,12 @@ export const PATCH = withApiHandler(
       p_description: body.description,
       p_timezone: body.timezone,
     });
-    if (error) return mapRpcError(error, { message: "Project could not be updated.", requestId });
+    if (error)
+      return mapRpcError(error, {
+        message: "Project could not be updated.",
+        requestId,
+        projectScoped: true,
+      });
     return json({ data: Array.isArray(data) ? data[0] : data });
   },
 );

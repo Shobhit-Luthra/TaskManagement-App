@@ -47,7 +47,12 @@ export const POST = withApiHandler(
       p_position: body.position ?? null,
       p_mutation_id: body.mutationId ?? null,
     });
-    if (error) return mapRpcError(error, { message: "Task could not be created.", requestId });
+    if (error)
+      return mapRpcError(error, {
+        message: "Task could not be created.",
+        requestId,
+        projectScoped: true,
+      });
 
     const task = firstRow(data);
     if (!task)

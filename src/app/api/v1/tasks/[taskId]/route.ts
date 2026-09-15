@@ -21,7 +21,12 @@ export const PATCH = withApiHandler(
       p_due_date: body.dueDate,
       p_priority: body.priority,
     });
-    if (error) return mapRpcError(error, { message: "Task could not be updated.", requestId });
+    if (error)
+      return mapRpcError(error, {
+        message: "Task could not be updated.",
+        requestId,
+        projectScoped: true,
+      });
     const task = firstRow(data);
     if (!task)
       return apiError(500, "INTERNAL_ERROR", "Task update returned no task.", { requestId });
@@ -38,7 +43,12 @@ export const DELETE = withApiHandler(
   },
   async ({ supabase, params, requestId }) => {
     const { error } = await supabase.rpc("soft_delete_task", { p_task_id: params.taskId });
-    if (error) return mapRpcError(error, { message: "Task could not be deleted.", requestId });
+    if (error)
+      return mapRpcError(error, {
+        message: "Task could not be deleted.",
+        requestId,
+        projectScoped: true,
+      });
     return new Response(null, { status: 204 });
   },
 );

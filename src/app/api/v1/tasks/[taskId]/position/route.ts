@@ -20,7 +20,12 @@ export const PATCH = withApiHandler(
       p_position: body.position,
       p_mutation_id: body.mutationId,
     });
-    if (error) return mapRpcError(error, { message: "Task could not be moved.", requestId });
+    if (error)
+      return mapRpcError(error, {
+        message: "Task could not be moved.",
+        requestId,
+        projectScoped: true,
+      });
     const task = firstRow(data);
     if (!task) return apiError(500, "INTERNAL_ERROR", "Task move returned no task.", { requestId });
     return json({ data: task });

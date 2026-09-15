@@ -18,7 +18,12 @@ export const POST = withApiHandler(
       p_name: body.name,
       p_wip_limit: body.wipLimit ?? null,
     });
-    if (error) return mapRpcError(error, { message: "Column could not be created.", requestId });
+    if (error)
+      return mapRpcError(error, {
+        message: "Column could not be created.",
+        requestId,
+        projectScoped: true,
+      });
     return json({ data: Array.isArray(data) ? data[0] : data }, { status: 201 });
   },
 );

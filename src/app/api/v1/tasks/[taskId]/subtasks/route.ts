@@ -36,7 +36,12 @@ export const POST = withApiHandler(
       p_task_id: params.taskId,
       p_title: body.title,
     });
-    if (error) return mapRpcError(error, { message: "Subtask could not be created.", requestId });
+    if (error)
+      return mapRpcError(error, {
+        message: "Subtask could not be created.",
+        requestId,
+        projectScoped: true,
+      });
     const subtask = firstRow(data);
     if (!subtask)
       return apiError(500, "INTERNAL_ERROR", "Subtask creation returned no subtask.", {

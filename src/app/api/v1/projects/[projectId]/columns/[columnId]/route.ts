@@ -20,7 +20,12 @@ export const PATCH = withApiHandler(
       p_wip_limit: body.wipLimit,
       p_is_done_column: body.isDoneColumn,
     });
-    if (error) return mapRpcError(error, { message: "Column could not be updated.", requestId });
+    if (error)
+      return mapRpcError(error, {
+        message: "Column could not be updated.",
+        requestId,
+        projectScoped: true,
+      });
     return json({ data: Array.isArray(data) ? data[0] : data });
   },
 );

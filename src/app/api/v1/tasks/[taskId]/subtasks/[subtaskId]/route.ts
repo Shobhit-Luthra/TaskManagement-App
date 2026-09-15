@@ -19,7 +19,12 @@ export const PATCH = withApiHandler(
       p_title: body.title ?? null,
       p_is_completed: body.isCompleted ?? null,
     });
-    if (error) return mapRpcError(error, { message: "Subtask could not be updated.", requestId });
+    if (error)
+      return mapRpcError(error, {
+        message: "Subtask could not be updated.",
+        requestId,
+        projectScoped: true,
+      });
     return json({ data: Array.isArray(data) ? data[0] : data });
   },
 );
@@ -36,7 +41,12 @@ export const DELETE = withApiHandler(
       p_task_id: params.taskId,
       p_subtask_id: params.subtaskId,
     });
-    if (error) return mapRpcError(error, { message: "Subtask could not be deleted.", requestId });
+    if (error)
+      return mapRpcError(error, {
+        message: "Subtask could not be deleted.",
+        requestId,
+        projectScoped: true,
+      });
     return new Response(null, { status: 204 });
   },
 );
