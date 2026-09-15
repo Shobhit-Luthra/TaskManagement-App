@@ -9,6 +9,7 @@ export const REDACTED_KEYS = [
   "cookie",
   "email",
   "body",
+  "to",
 ] as const;
 
 function redact(fields: LogFields): LogFields {
