@@ -25,21 +25,26 @@ vi.mock("@/lib/supabase/client", () => ({ createClient: mocks.createClient }));
 import { useProjectChannel } from "./use-project-channel";
 
 describe("useProjectChannel", () => {
-  it("subscribes to both project tables, reports status, normalizes events, and cleans up", () => {
+  it("subscribes to project tables, reports status, normalizes events, and cleans up", () => {
     const onTask = vi.fn();
     const onColumn = vi.fn();
     const { result, unmount } = renderHook(() =>
-      useProjectChannel("project-1", { onTask, onColumn }),
+      useProjectChannel("project-1", "user-1", { onTask, onColumn }),
     );
 
     expect(result.current).toBe("connecting");
-    expect(mocks.on).toHaveBeenCalledTimes(2);
+    expect(mocks.on).toHaveBeenCalledTimes(3);
     expect(mocks.on.mock.calls[0]?.[1]).toMatchObject({
       table: "tasks",
       filter: "project_id=eq.project-1",
     });
     expect(mocks.on.mock.calls[1]?.[1]).toMatchObject({
       table: "columns",
+      filter: "project_id=eq.project-1",
+    });
+    expect(mocks.on.mock.calls[2]?.[1]).toMatchObject({
+      table: "memberships",
+      event: "DELETE",
       filter: "project_id=eq.project-1",
     });
 
@@ -57,5 +62,23 @@ describe("useProjectChannel", () => {
     expect(result.current).toBe("reconnecting");
     unmount();
     expect(mocks.removeChannel).toHaveBeenCalled();
+  });
+
+  it("fires onMembershipRemoved only when the removed row is the current user", () => {
+    const onMembershipRemoved = vi.fn();
+    renderHook(() =>
+      useProjectChannel("project-1", "user-1", {
+        onTask: vi.fn(),
+        onColumn: vi.fn(),
+        onMembershipRemoved,
+      }),
+    );
+    const membershipCallback = mocks.on.mock.calls[2]?.[2] as (payload: unknown) => void;
+
+    membershipCallback({ eventType: "DELETE", old: { user_id: "user-2" } });
+    expect(onMembershipRemoved).not.toHaveBeenCalled();
+
+    membershipCallback({ eventType: "DELETE", old: { user_id: "user-1" } });
+    expect(onMembershipRemoved).toHaveBeenCalledTimes(1);
   });
 });

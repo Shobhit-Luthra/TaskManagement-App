@@ -7,13 +7,16 @@ import { createClient } from "@/lib/supabase/server";
 export default async function BoardPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const supabase = await createClient();
-  const { data: project } = await supabase
-    .from("projects")
-    .select("id, name")
-    .eq("id", projectId)
-    .is("deleted_at", null)
-    .maybeSingle();
-  if (!project) notFound();
+  const [{ data: project }, { data: auth }] = await Promise.all([
+    supabase
+      .from("projects")
+      .select("id, name")
+      .eq("id", projectId)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    supabase.auth.getUser(),
+  ]);
+  if (!project || !auth.user) notFound();
   const [
     { data: columnData, error: columnsError },
     { data: taskData, error: tasksError },
@@ -88,6 +91,7 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
       </header>
       <ProjectBoard
         projectId={projectId}
+        currentUserId={auth.user.id}
         initialColumns={columns}
         initialTasks={tasks}
         readOnly={membership?.role === "viewer"}

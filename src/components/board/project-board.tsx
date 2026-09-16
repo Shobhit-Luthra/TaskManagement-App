@@ -46,11 +46,13 @@ export type BoardTask = {
 
 export function ProjectBoard({
   projectId,
+  currentUserId,
   initialColumns,
   initialTasks,
   readOnly: readOnlyRole,
 }: {
   projectId: string;
+  currentUserId: string;
   initialColumns: BoardColumn[];
   initialTasks: BoardTask[];
   readOnly: boolean;
@@ -62,8 +64,9 @@ export function ProjectBoard({
   const [moveError, setMoveError] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<BoardTask | null>(null);
   const inFlightMutations = useRef<Set<string>>(new Set());
+  const router = useRouter();
 
-  const syncStatus = useProjectChannel(projectId, {
+  const syncStatus = useProjectChannel(projectId, currentUserId, {
     onTask: (event) => {
       setTasks((current) => {
         const result = mergeTaskEvent(current, event, inFlightMutations.current);
@@ -72,6 +75,9 @@ export function ProjectBoard({
       });
     },
     onColumn: (event) => setColumns((current) => mergeColumnEvent(current, event)),
+    onMembershipRemoved: () => {
+      router.replace("/projects?removed=1");
+    },
   });
 
   const [degraded, setDegraded] = useState(false);
@@ -85,7 +91,6 @@ export function ProjectBoard({
   }, [syncStatus]);
 
   const readOnly = readOnlyRole || degraded;
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(searchParams.get("q") ?? "");

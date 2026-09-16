@@ -10,6 +10,7 @@ export type SyncStatus = "connecting" | "connected" | "reconnecting";
 type ProjectChannelHandlers = {
   onTask: (event: ChangeEvent<TaskRow>) => void;
   onColumn: (event: ChangeEvent<ColumnRow>) => void;
+  onMembershipRemoved?: () => void;
 };
 
 function normalize<Row>(
@@ -26,7 +27,11 @@ function normalize<Row>(
  * Realtime channel. Row visibility is enforced by RLS. Returns the connection
  * status so the board can surface a reconnect banner and degrade to read-only.
  */
-export function useProjectChannel(projectId: string, handlers: ProjectChannelHandlers): SyncStatus {
+export function useProjectChannel(
+  projectId: string,
+  currentUserId: string | null,
+  handlers: ProjectChannelHandlers,
+): SyncStatus {
   const [status, setStatus] = useState<SyncStatus>("connecting");
   const handlersRef = useRef(handlers);
 
@@ -47,6 +52,16 @@ export function useProjectChannel(projectId: string, handlers: ProjectChannelHan
         { event: "*", schema: "public", table: "columns", filter },
         (payload) => handlersRef.current.onColumn(normalize<ColumnRow>(payload)),
       )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "memberships", filter },
+        (payload) => {
+          const removedUserId = (payload.old as { user_id?: string }).user_id;
+          if (currentUserId && removedUserId === currentUserId) {
+            handlersRef.current.onMembershipRemoved?.();
+          }
+        },
+      )
       .subscribe((channelStatus) => {
         if (channelStatus === "SUBSCRIBED") setStatus("connected");
         else if (
@@ -61,7 +76,7 @@ export function useProjectChannel(projectId: string, handlers: ProjectChannelHan
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [projectId]);
+  }, [projectId, currentUserId]);
 
   return status;
 }
