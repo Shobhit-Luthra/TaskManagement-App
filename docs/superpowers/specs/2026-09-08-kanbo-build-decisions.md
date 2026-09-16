@@ -73,3 +73,13 @@ before the analytics dashboard (`00 §9`).
 - SQL lives only in the repository layer (`03 §4`).
 - Non-members get 404, never 403, on project-scoped resources (`05 §2`, `07 §4`).
 - Secrets never in `NEXT_PUBLIC_*`; service-role key server-only (`07 §8`).
+
+## Amendments — 2026-09-17 (Sub-plan 2B: members, roles & invitations)
+
+| ID | Decision |
+| --- | --- |
+| B1 | New custom errcode `P0003` (`GONE`) extends the `P0001`/`P0002` convention: RPCs raise it for an expired, already-accepted, or already-declined invitation token so `mapRpcError` returns 410, distinct from 404 (`create_invitation`/`accept_invitation`/`decline_invitation`/`peek_invitation`, `202609170001_invitations_accept.sql`). |
+| B2 | `idempotency_keys (user_id, key, request_hash, status, response jsonb, created_at)` covers invitation creation (`POST /invitations`) as of this sub-plan; task creation adopts it in 2C. No RLS policies — service-role only, deny by default. |
+| B3 | Invite tokens are 32 CSPRNG bytes, base64url-encoded, handed to the invitee once; only the SHA-256 hex digest (`token_hash`) is ever persisted, so a database read can never recover a usable token. |
+| B4 | `soft_delete_project` deletes `memberships` and `invitations` rows outright rather than soft-deleting them — neither table has a `deleted_at` column, and a deleted project's `uuid` is never reused, so there is nothing left to hide. |
+| B5 | The invite-token cookie (`kanbo_invite`, httpOnly, 1h) is read and cleared by **both** `/auth/callback` (Google OAuth) and `/auth/confirm` (email-signup verification) — G11 only specified "the callback route," but email signup verifies through `/auth/confirm`, not `/auth/callback`, so both needed the same handoff for the invite flow to actually work end to end. |
