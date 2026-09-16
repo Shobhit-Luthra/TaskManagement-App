@@ -136,6 +136,7 @@ export function withApiHandler<TBody = undefined, TParams = Record<string, never
 const RPC_ERROR_MAP: Record<string, { status: number; code: ApiErrorCode }> = {
   "28000": { status: 401, code: "UNAUTHENTICATED" },
   P0002: { status: 404, code: "NOT_FOUND" },
+  P0003: { status: 410, code: "GONE" },
   "42501": { status: 403, code: "FORBIDDEN" },
   "22023": { status: 422, code: "VALIDATION_ERROR" },
   "23505": { status: 409, code: "CONFLICT" },

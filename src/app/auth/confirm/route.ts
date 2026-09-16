@@ -12,7 +12,16 @@ export async function GET(request: NextRequest) {
   }
   const supabase = await createClient();
   const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
-  url.pathname = error ? "/login" : type === "recovery" ? "/reset-password" : "/projects";
+  const inviteToken = request.cookies.get("kanbo_invite")?.value;
+  url.pathname = error
+    ? "/login"
+    : type === "recovery"
+      ? "/reset-password"
+      : inviteToken
+        ? `/invite/${inviteToken}`
+        : "/projects";
   url.search = error ? "?error=confirm" : "";
-  return NextResponse.redirect(url);
+  const response = NextResponse.redirect(url);
+  if (inviteToken) response.cookies.delete("kanbo_invite");
+  return response;
 }

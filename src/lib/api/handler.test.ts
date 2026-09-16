@@ -175,6 +175,7 @@ describe("mapRpcError", () => {
   it.each([
     ["28000", 401, "UNAUTHENTICATED"],
     ["P0002", 404, "NOT_FOUND"],
+    ["P0003", 410, "GONE"],
     ["42501", 403, "FORBIDDEN"],
     ["22023", 422, "VALIDATION_ERROR"],
     ["23505", 409, "CONFLICT"],
