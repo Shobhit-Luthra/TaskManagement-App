@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Activity, ArrowLeft, LayoutList, Settings } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ProjectBoard, type BoardColumn, type BoardTask } from "@/components/board/project-board";
+import { BoardHeaderInvite } from "@/components/members/board-header-invite";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function BoardPage({ params }: { params: Promise<{ projectId: string }> }) {
@@ -21,6 +22,7 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
     { data: columnData, error: columnsError },
     { data: taskData, error: tasksError },
     { data: membership },
+    { data: memberData },
   ] = await Promise.all([
     supabase
       .from("columns")
@@ -37,6 +39,10 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
       .is("deleted_at", null)
       .order("position"),
     supabase.from("memberships").select("role").eq("project_id", projectId).maybeSingle(),
+    supabase
+      .from("memberships")
+      .select("user_id, project_peers!inner(id, display_name)")
+      .eq("project_id", projectId),
   ]);
   if (columnsError || tasksError) {
     return (
@@ -47,6 +53,10 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
   }
   const columns = (columnData ?? []) as BoardColumn[];
   const tasks = (taskData ?? []) as BoardTask[];
+  const members = (memberData ?? []).map((row) => {
+    const peer = Array.isArray(row.project_peers) ? row.project_peers[0] : row.project_peers;
+    return { userId: row.user_id, displayName: peer?.display_name ?? "Unknown" };
+  });
   return (
     <main className="flex min-h-[calc(100dvh-88px)] flex-col">
       <header className="bg-background border-y px-4 py-4 sm:px-6">
@@ -61,6 +71,11 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
             {project.name}
           </h1>
           <div className="flex items-center gap-3">
+            <BoardHeaderInvite
+              projectId={projectId}
+              members={members}
+              canInvite={membership?.role === "owner" || membership?.role === "admin"}
+            />
             <Link
               href={`/p/${projectId}/list`}
               className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm font-medium"

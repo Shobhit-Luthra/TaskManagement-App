@@ -32,8 +32,18 @@ export default async function SettingsPage({ params }: { params: Promise<{ proje
       >
         ← Back to board
       </Link>
-      <h1 className="mt-6 text-2xl font-semibold tracking-tight">Project settings</h1>
-      <p className="text-muted-foreground mt-1 text-sm">Update the shared project details.</p>
+      <div className="mt-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Project settings</h1>
+          <p className="text-muted-foreground mt-1 text-sm">Update the shared project details.</p>
+        </div>
+        <Link
+          href={`/p/${projectId}/settings/members`}
+          className="text-muted-foreground hover:text-foreground text-sm font-medium"
+        >
+          Members →
+        </Link>
+      </div>
       {canManage ? (
         <>
           <ProjectSettingsForm project={project} />
