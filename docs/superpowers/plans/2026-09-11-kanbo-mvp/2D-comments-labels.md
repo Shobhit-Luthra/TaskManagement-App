@@ -1,6 +1,6 @@
 # Kanbo Sub-plan 2D — Comments, mentions & labels (P1)
 
-> **Status: task-level.** Expand this file to step-level (bite-sized TDD steps with code) using `superpowers:writing-plans` immediately before execution, then run it with `superpowers:subagent-driven-development`. Do not start until Sub-plan 2C has shipped to staging with CI green.
+> **Status: expanded to step-level.** The full TDD (failing test → code → passing test → commit) plan for all four tasks below lives in `2D-comments-labels-1.md`. This file is now a quick-reference index of the task summaries; execute from `2D-comments-labels-1.md` with `superpowers:subagent-driven-development`. Do not start until Sub-plan 2C has shipped to staging with CI green.
 >
 > **Read first:** `00-master-roadmap.md` §2 (Gap Register — the G*/T* ids referenced below), §4 (cross-cutting rules, including the security-property requirement for auth/membership/token tasks), and the *Interfaces* blocks of the previous sub-plans — every task here consumes `withApiHandler` / `mapRpcError` (`src/lib/api/handler.ts`), `RATE_LIMITS` (`src/lib/api/rate-limit.ts`), `createAdminClient` (`src/lib/supabase/admin.ts`), `seedIsolationFixture` (`src/test/rls/setup.ts`) and `log` (`src/lib/log.ts`) from 2A.
 >
