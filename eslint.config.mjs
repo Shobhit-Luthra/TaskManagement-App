@@ -23,6 +23,10 @@ const eslintConfig = defineConfig([
           selector: "Identifier[name=/^NEXT_PUBLIC_.*(SERVICE|SECRET|PRIVATE|SERVICE_ROLE)/i]",
           message: "Secrets must not be exposed with the NEXT_PUBLIC_ prefix (07 §8).",
         },
+        {
+          selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+          message: "dangerouslySetInnerHTML is banned; render untrusted content through the comment markdown sanitiser.",
+        },
       ],
     },
   },

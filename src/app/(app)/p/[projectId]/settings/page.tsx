@@ -37,12 +37,20 @@ export default async function SettingsPage({ params }: { params: Promise<{ proje
           <h1 className="text-2xl font-semibold tracking-tight">Project settings</h1>
           <p className="text-muted-foreground mt-1 text-sm">Update the shared project details.</p>
         </div>
-        <Link
-          href={`/p/${projectId}/settings/members`}
-          className="text-muted-foreground hover:text-foreground text-sm font-medium"
-        >
-          Members →
-        </Link>
+        <div className="flex gap-4">
+          <Link
+            href={`/p/${projectId}/settings/members`}
+            className="text-muted-foreground hover:text-foreground text-sm font-medium"
+          >
+            Members →
+          </Link>
+          <Link
+            href={`/p/${projectId}/settings/labels`}
+            className="text-muted-foreground hover:text-foreground text-sm font-medium"
+          >
+            Labels →
+          </Link>
+        </div>
       </div>
       {canManage ? (
         <>
