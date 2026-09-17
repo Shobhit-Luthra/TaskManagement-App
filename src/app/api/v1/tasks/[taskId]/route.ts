@@ -20,7 +20,19 @@ export const PATCH = withApiHandler(
       p_description: body.description,
       p_due_date: body.dueDate,
       p_priority: body.priority,
+      p_assignee_id: body.assigneeId ?? null,
+      p_expected_updated_at: body.expectedUpdatedAt ?? null,
     });
+    if (error?.code === "40001") {
+      const { data: current } = await supabase
+        .from("tasks")
+        .select(
+          "id, column_id, title, description, due_date, priority, position, assignee_id, created_at, updated_at",
+        )
+        .eq("id", params.taskId)
+        .maybeSingle();
+      return apiError(409, "CONFLICT", "This task changed since you opened it.", { current });
+    }
     if (error)
       return mapRpcError(error, {
         message: "Task could not be updated.",

@@ -32,6 +32,8 @@ export const updateTaskSchema = z.object({
   description: z.string().max(20_000).nullable(),
   dueDate: z.string().date().nullable(),
   priority: taskPrioritySchema,
+  assigneeId: uuidSchema.nullable().optional(),
+  expectedUpdatedAt: z.string().datetime({ offset: true }).nullable().optional(),
 });
 
 export const subtaskTitleSchema = z

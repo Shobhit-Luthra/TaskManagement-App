@@ -8,6 +8,7 @@ export type TaskRow = {
   description: string | null;
   due_date: string | null;
   priority: BoardTask["priority"];
+  assignee_id?: string | null;
   position: number;
   mutation_id: string | null;
   deleted_at: string | null;
@@ -21,7 +22,20 @@ export type ColumnRow = {
   name: string;
   position: number;
   wip_limit: number | null;
+  is_done_column?: boolean;
   deleted_at: string | null;
+};
+
+export type CommentRow = {
+  id: string;
+  project_id: string;
+  task_id: string;
+  author_id: string;
+  body: string;
+  mentioned_user_ids: string[];
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type ChangeEvent<Row> =
@@ -48,6 +62,7 @@ function toBoardTask(row: TaskRow): BoardTask {
     position: row.position,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    assignee_id: row.assignee_id,
   };
 }
 
@@ -90,12 +105,18 @@ export function mergeTaskEvent(
   // UPDATE
   if (!known) return { tasks: [...tasks, toBoardTask(row)] };
   return {
-    tasks: tasks.map((task) => (task.id === row.id ? toBoardTask(row) : task)),
+    tasks: tasks.map((task) => (task.id === row.id ? { ...task, ...toBoardTask(row) } : task)),
   };
 }
 
 function toBoardColumn(row: ColumnRow): BoardColumn {
-  return { id: row.id, name: row.name, position: row.position, wip_limit: row.wip_limit };
+  return {
+    id: row.id,
+    name: row.name,
+    position: row.position,
+    wip_limit: row.wip_limit,
+    is_done_column: row.is_done_column,
+  };
 }
 
 export function mergeColumnEvent(

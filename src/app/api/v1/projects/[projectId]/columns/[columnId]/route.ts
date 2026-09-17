@@ -2,6 +2,7 @@ import { z } from "zod";
 import { json, mapRpcError, withApiHandler } from "@/lib/api/handler";
 import { RATE_LIMITS } from "@/lib/api/rate-limit";
 import { updateColumnSchema } from "@/lib/projects/schemas";
+import { deleteColumnSchema } from "@/lib/columns/schemas";
 
 export const PATCH = withApiHandler(
   {
@@ -27,5 +28,30 @@ export const PATCH = withApiHandler(
         projectScoped: true,
       });
     return json({ data: Array.isArray(data) ? data[0] : data });
+  },
+);
+
+export const DELETE = withApiHandler(
+  {
+    rateLimit: RATE_LIMITS.writes,
+    params: z.object({ projectId: z.string().uuid(), columnId: z.string().uuid() }),
+    body: deleteColumnSchema,
+    notFoundMessage: "Column not found.",
+    unauthenticatedMessage: "Sign in to delete columns.",
+    validationMessage: "Choose where this column's tasks should go.",
+  },
+  async ({ supabase, params, body, requestId }) => {
+    const { error } = await supabase.rpc("delete_column", {
+      p_column_id: params.columnId,
+      p_move_tasks_to: body.moveTasksTo,
+    });
+    if (error) {
+      return mapRpcError(error, {
+        message: "Column could not be deleted.",
+        requestId,
+        projectScoped: true,
+      });
+    }
+    return new Response(null, { status: 204 });
   },
 );

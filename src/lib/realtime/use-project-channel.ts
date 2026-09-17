@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
-import type { ChangeEvent, ColumnRow, TaskRow } from "./board-sync";
+import type { ChangeEvent, ColumnRow, CommentRow, TaskRow } from "./board-sync";
 
 export type SyncStatus = "connecting" | "connected" | "reconnecting";
 
 type ProjectChannelHandlers = {
   onTask: (event: ChangeEvent<TaskRow>) => void;
   onColumn: (event: ChangeEvent<ColumnRow>) => void;
+  onComment?: (event: ChangeEvent<CommentRow>) => void;
   onMembershipRemoved?: () => void;
 };
 
@@ -51,6 +52,11 @@ export function useProjectChannel(
         "postgres_changes",
         { event: "*", schema: "public", table: "columns", filter },
         (payload) => handlersRef.current.onColumn(normalize<ColumnRow>(payload)),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "comments", filter },
+        (payload) => handlersRef.current.onComment?.(normalize<CommentRow>(payload)),
       )
       .on(
         "postgres_changes",

@@ -28,12 +28,13 @@ describe("useProjectChannel", () => {
   it("subscribes to project tables, reports status, normalizes events, and cleans up", () => {
     const onTask = vi.fn();
     const onColumn = vi.fn();
+    const onComment = vi.fn();
     const { result, unmount } = renderHook(() =>
-      useProjectChannel("project-1", "user-1", { onTask, onColumn }),
+      useProjectChannel("project-1", "user-1", { onTask, onColumn, onComment }),
     );
 
     expect(result.current).toBe("connecting");
-    expect(mocks.on).toHaveBeenCalledTimes(3);
+    expect(mocks.on).toHaveBeenCalledTimes(4);
     expect(mocks.on.mock.calls[0]?.[1]).toMatchObject({
       table: "tasks",
       filter: "project_id=eq.project-1",
@@ -43,6 +44,10 @@ describe("useProjectChannel", () => {
       filter: "project_id=eq.project-1",
     });
     expect(mocks.on.mock.calls[2]?.[1]).toMatchObject({
+      table: "comments",
+      filter: "project_id=eq.project-1",
+    });
+    expect(mocks.on.mock.calls[3]?.[1]).toMatchObject({
       table: "memberships",
       event: "DELETE",
       filter: "project_id=eq.project-1",
@@ -53,10 +58,16 @@ describe("useProjectChannel", () => {
 
     const taskCallback = mocks.on.mock.calls[0]?.[2] as (payload: unknown) => void;
     const columnCallback = mocks.on.mock.calls[1]?.[2] as (payload: unknown) => void;
+    const commentCallback = mocks.on.mock.calls[2]?.[2] as (payload: unknown) => void;
     taskCallback({ eventType: "DELETE", old: { id: "task-1" } });
     columnCallback({ eventType: "INSERT", new: { id: "column-1" } });
     expect(onTask).toHaveBeenCalledWith({ type: "DELETE", old: { id: "task-1" } });
     expect(onColumn).toHaveBeenCalledWith({ type: "INSERT", row: { id: "column-1" } });
+    commentCallback({ eventType: "UPDATE", new: { id: "comment-1", task_id: "task-1" } });
+    expect(onComment).toHaveBeenCalledWith({
+      type: "UPDATE",
+      row: { id: "comment-1", task_id: "task-1" },
+    });
 
     act(() => mocks.setStatus("CHANNEL_ERROR"));
     expect(result.current).toBe("reconnecting");
@@ -73,7 +84,7 @@ describe("useProjectChannel", () => {
         onMembershipRemoved,
       }),
     );
-    const membershipCallback = mocks.on.mock.calls[2]?.[2] as (payload: unknown) => void;
+    const membershipCallback = mocks.on.mock.calls[3]?.[2] as (payload: unknown) => void;
 
     membershipCallback({ eventType: "DELETE", old: { user_id: "user-2" } });
     expect(onMembershipRemoved).not.toHaveBeenCalled();

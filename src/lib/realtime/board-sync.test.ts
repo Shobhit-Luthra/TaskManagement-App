@@ -36,6 +36,16 @@ function boardTask(overrides: Partial<BoardTask> = {}): BoardTask {
 }
 
 describe("mergeTaskEvent", () => {
+  it("preserves joined labels while applying an assignment change", () => {
+    const labels = [{ id: "label-1", name: "Bug", color: "#EF4444" }];
+    const result = mergeTaskEvent(
+      [boardTask({ labels, assignee_id: "old-user" })],
+      { type: "UPDATE", row: taskRow({ assignee_id: "new-user" }) },
+      new Set(),
+    );
+    expect(result.tasks[0]?.labels).toEqual(labels);
+    expect(result.tasks[0]?.assignee_id).toBe("new-user");
+  });
   it("appends a task on INSERT", () => {
     const result = mergeTaskEvent(
       [],

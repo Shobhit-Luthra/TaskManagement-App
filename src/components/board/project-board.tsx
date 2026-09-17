@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { closestCorners, DndContext, DragOverlay, useDroppable } from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   CalendarDays,
   Check,
@@ -10,11 +13,10 @@ import {
   Flag,
   LoaderCircle,
   Plus,
-  Search,
   Trash2,
-  X,
+  TriangleAlert,
 } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   MUTATION_ECHO_TTL_MS,
@@ -24,12 +26,25 @@ import {
 } from "@/lib/realtime/board-sync";
 import { useProjectChannel } from "@/lib/realtime/use-project-channel";
 import { cn } from "@/lib/utils";
+import { useBoardDnd } from "./use-board-dnd";
+import { Announcer, type AnnouncerHandle } from "./announcer";
+import { AssigneePicker } from "./assignee-picker";
+import { CommentThread } from "./comment-thread";
+import type { PeerOption } from "./mention-autocomplete";
+import { LabelChip } from "@/components/labels/label-chip";
+import { LabelPicker, type LabelOption } from "@/components/labels/label-picker";
+import { applyFilters } from "@/lib/filters/apply";
+import { useFilterState } from "./use-filter-state";
+import { FilterBar } from "./filter-bar";
+import { useBoardShortcuts } from "@/lib/keyboard/use-board-shortcuts";
+import { ShortcutsHelpDialog } from "./shortcuts-help-dialog";
 
 export type BoardColumn = {
   id: string;
   name: string;
   position: number;
   wip_limit: number | null;
+  is_done_column?: boolean;
 };
 
 export type BoardTask = {
@@ -42,6 +57,8 @@ export type BoardTask = {
   position: number;
   created_at: string;
   updated_at: string;
+  assignee_id?: string | null;
+  labels?: LabelOption[];
 };
 
 export function ProjectBoard({
@@ -50,12 +67,20 @@ export function ProjectBoard({
   initialColumns,
   initialTasks,
   readOnly: readOnlyRole,
+  currentUserRole,
+  peers,
+  projectLabels,
+  projectTimezone,
 }: {
   projectId: string;
   currentUserId: string;
   initialColumns: BoardColumn[];
   initialTasks: BoardTask[];
   readOnly: boolean;
+  currentUserRole: "owner" | "admin" | "member" | "viewer";
+  peers: PeerOption[];
+  projectLabels: LabelOption[];
+  projectTimezone: string;
 }) {
   const [tasks, setTasks] = useState(initialTasks);
   const [columns, setColumns] = useState(initialColumns);
@@ -63,8 +88,11 @@ export function ProjectBoard({
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<BoardTask | null>(null);
+  const [commentRevision, setCommentRevision] = useState(0);
   const inFlightMutations = useRef<Set<string>>(new Set());
+  const announcerRef = useRef<AnnouncerHandle>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const syncStatus = useProjectChannel(projectId, currentUserId, {
     onTask: (event) => {
@@ -75,6 +103,7 @@ export function ProjectBoard({
       });
     },
     onColumn: (event) => setColumns((current) => mergeColumnEvent(current, event)),
+    onComment: () => setCommentRevision((current) => current + 1),
     onMembershipRemoved: () => {
       router.replace("/projects?removed=1");
     },
@@ -91,32 +120,61 @@ export function ProjectBoard({
   }, [syncStatus]);
 
   const readOnly = readOnlyRole || degraded;
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [query, setQuery] = useState(searchParams.get("q") ?? "");
-  const initialPriority = searchParams.get("priority");
-  const [priority, setPriority] = useState<BoardTask["priority"] | "all">(
-    isPriority(initialPriority) ? initialPriority : "all",
-  );
+  const [filters, setFilter, clearFilters] = useFilterState();
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const filterBarRef = useRef<HTMLDivElement>(null);
+  const [filtersExpanded, setFiltersExpanded] = useState(true);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [searchFocusRequest, setSearchFocusRequest] = useState(0);
+
+  useEffect(() => {
+    if (searchFocusRequest > 0) filterBarRef.current?.querySelector("input")?.focus();
+  }, [searchFocusRequest]);
+
+  useBoardShortcuts({
+    onFocusSearch: () => {
+      setFiltersExpanded(true);
+      setSearchFocusRequest((current) => current + 1);
+    },
+    onToggleFilters: () => setFiltersExpanded((current) => !current),
+    onNewTask: () => {
+      if (!readOnly) composerRef.current?.focus();
+    },
+    onShowHelp: () => setShortcutsOpen(true),
+  });
 
   useEffect(() => {
     if (!readOnly && tasks.length === 0) composerRef.current?.focus();
   }, [readOnly, tasks.length]);
 
+  useEffect(() => {
+    const taskId = searchParams.get("task");
+    if (!taskId) return;
+    const task = tasks.find((candidate) => candidate.id === taskId);
+    if (!task) return;
+    const timer = window.setTimeout(() => setEditingTask(task), 0);
+    return () => window.clearTimeout(timer);
+  }, [searchParams, tasks]);
+
   function appendTask(task: BoardTask) {
     setTasks((current) => [...current, task]);
   }
 
-  async function moveTask(task: BoardTask, columnId: string) {
-    if (columnId === task.column_id || movingTaskId) return;
+  async function moveTask(
+    task: BoardTask,
+    columnId: string,
+    proposedPosition?: number,
+    proposedMutationId?: string,
+  ) {
+    if (movingTaskId) return;
     const targetTasks = tasks.filter((candidate) => candidate.column_id === columnId);
     const position =
-      targetTasks.length === 0
-        ? 1
-        : Math.min(...targetTasks.map((candidate) => candidate.position)) - 1;
+      proposedPosition ??
+      (targetTasks.length === 0
+        ? 1000
+        : Math.min(...targetTasks.map((candidate) => candidate.position)) - 1);
     const previousTask = task;
-    const mutationId = crypto.randomUUID();
+    const mutationId = proposedMutationId ?? crypto.randomUUID();
     inFlightMutations.current.add(mutationId);
     window.setTimeout(() => inFlightMutations.current.delete(mutationId), MUTATION_ECHO_TTL_MS);
     setMoveError(null);
@@ -126,6 +184,8 @@ export function ProjectBoard({
         candidate.id === task.id ? { ...candidate, column_id: columnId, position } : candidate,
       ),
     );
+    const targetColumn = columns.find((column) => column.id === columnId);
+    if (targetColumn) announcerRef.current?.announce(`${task.title} moved to ${targetColumn.name}`);
     try {
       const response = await fetch(`/api/v1/tasks/${task.id}/position`, {
         method: "PATCH",
@@ -144,14 +204,29 @@ export function ProjectBoard({
         current.map((candidate) => (candidate.id === task.id ? previousTask : candidate)),
       );
       setMoveError("Task could not be moved. It was returned to its previous column.");
+      announcerRef.current?.announce(
+        `${task.title} could not be moved and was returned to its previous column`,
+      );
     } finally {
       setMovingTaskId(null);
     }
   }
 
+  const dnd = useBoardDnd({
+    tasks,
+    columns,
+    readOnly,
+    onMove: (taskId, columnId, position, mutationId) => {
+      const task = tasks.find((candidate) => candidate.id === taskId);
+      if (task) void moveTask(task, columnId, position, mutationId);
+    },
+  });
+
   function updateTask(task: BoardTask) {
     setTasks((current) =>
-      current.map((candidate) => (candidate.id === task.id ? task : candidate)),
+      current.map((candidate) =>
+        candidate.id === task.id ? { ...candidate, ...task } : candidate,
+      ),
     );
     setEditingTask(null);
   }
@@ -161,31 +236,23 @@ export function ProjectBoard({
     setEditingTask(null);
   }
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const params = new URLSearchParams();
-      if (query.trim()) params.set("q", query.trim());
-      else params.delete("q");
-      if (priority === "all") params.delete("priority");
-      else params.set("priority", priority);
-      const suffix = params.toString();
-      router.replace(suffix ? `${pathname}?${suffix}` : pathname, { scroll: false });
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [pathname, priority, query, router]);
-
-  function resetFilters() {
-    setQuery("");
-    setPriority("all");
-    router.replace(pathname, { scroll: false });
-  }
-
-  const visibleTasks = tasks.filter((task) => {
-    const matchesQuery =
-      !query.trim() || task.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
-    return matchesQuery && (priority === "all" || task.priority === priority);
-  });
-  const hasFilters = Boolean(query.trim()) || priority !== "all";
+  const visibleTasks = applyFilters(
+    tasks.map((task) => ({
+      ...task,
+      assignee_id: task.assignee_id ?? null,
+      label_ids: task.labels?.map((label) => label.id) ?? [],
+      isDone: columns.find((column) => column.id === task.column_id)?.is_done_column ?? false,
+    })),
+    filters,
+    { projectTimezone, now: new Date() },
+  );
+  const hasFilters = Boolean(
+    filters.q ||
+    filters.assignee.length ||
+    filters.label.length ||
+    filters.priority.length ||
+    filters.due,
+  );
 
   if (columns.length === 0) {
     return (
@@ -200,6 +267,7 @@ export function ProjectBoard({
 
   return (
     <section aria-label="Board columns" className="bg-muted/40 relative flex-1 overflow-hidden">
+      <Announcer ref={announcerRef} />
       {syncStatus === "reconnecting" && (
         <p
           role="status"
@@ -210,39 +278,27 @@ export function ProjectBoard({
             : "Reconnecting to live updates…"}
         </p>
       )}
-      <div className="bg-background flex flex-col gap-2 border-b px-4 py-3 sm:flex-row sm:items-center">
-        <label className="relative min-w-0 flex-1">
-          <span className="sr-only">Search tasks</span>
-          <Search
-            className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
-            aria-hidden="true"
-          />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search tasks"
-            className="bg-background placeholder:text-muted-foreground focus-visible:ring-ring/40 h-9 w-full rounded-md border py-2 pr-3 pl-9 text-base outline-none focus-visible:ring-2 sm:text-sm"
-          />
-        </label>
-        <label className="flex items-center gap-2 text-sm font-medium">
-          <span className="text-muted-foreground">Priority</span>
-          <select
-            value={priority}
-            onChange={(event) => setPriority(event.target.value as BoardTask["priority"] | "all")}
-            className="bg-background focus-visible:ring-ring/40 h-9 rounded-md border px-2 text-sm font-normal outline-none focus-visible:ring-2"
-          >
-            <option value="all">All</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="urgent">Urgent</option>
-          </select>
-        </label>
-        {hasFilters && (
-          <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
-            <X /> Clear filters
-          </Button>
-        )}
+      <div className="bg-background flex items-center justify-between border-b px-4 py-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-expanded={filtersExpanded}
+          aria-controls="board-filters"
+          onClick={() => setFiltersExpanded((current) => !current)}
+        >
+          {filtersExpanded ? "Hide filters" : "Show filters"}
+        </Button>
+        <ShortcutsHelpDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      </div>
+      <div id="board-filters" ref={filterBarRef} hidden={!filtersExpanded}>
+        <FilterBar
+          filters={filters}
+          onChange={setFilter}
+          onClear={clearFilters}
+          peers={peers}
+          labels={projectLabels}
+        />
       </div>
       <div className="flex items-center justify-between px-4 pt-3 md:hidden">
         <Button
@@ -267,70 +323,102 @@ export function ProjectBoard({
           <ChevronRight />
         </Button>
       </div>
-      <div className="flex h-full gap-3 overflow-x-auto p-4 pt-3 md:pt-4">
-        {columns.map((column, index) => {
-          const columnTasks = visibleTasks
-            .filter((task) => task.column_id === column.id)
-            .sort((a, b) => a.position - b.position);
-          return (
-            <section
-              key={column.id}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                event.preventDefault();
-                const taskId = event.dataTransfer.getData("text/plain");
-                const task = tasks.find((candidate) => candidate.id === taskId);
-                if (task) void moveTask(task, column.id);
-              }}
-              className={cn(
-                "bg-card flex min-h-[calc(100dvh-180px)] w-[min(21rem,calc(100vw-2rem))] shrink-0 flex-col rounded-xl shadow-sm ring-1 ring-black/5 md:w-72",
-                index !== activeColumn && "max-md:hidden",
-              )}
-            >
-              <header className="bg-card sticky top-0 z-10 flex items-center justify-between rounded-t-xl border-b px-4 py-3">
-                <div className="min-w-0">
-                  <h2 className="truncate font-semibold">{column.name}</h2>
-                  <p className="text-muted-foreground mt-0.5 text-xs">
-                    {columnTasks.length} {columnTasks.length === 1 ? "task" : "tasks"}
-                    {column.wip_limit ? ` · WIP ${column.wip_limit}` : ""}
-                  </p>
-                </div>
-                {!readOnly && <Plus className="text-muted-foreground size-4" aria-hidden="true" />}
-              </header>
-              <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
-                {columnTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    columns={columns}
-                    readOnly={readOnly}
-                    moving={movingTaskId === task.id}
-                    onMove={moveTask}
-                    onOpen={() => setEditingTask(task)}
-                  />
-                ))}
-                {columnTasks.length === 0 && (
-                  <div className="text-muted-foreground flex min-h-28 items-center justify-center rounded-lg border border-dashed px-4 text-center text-sm">
-                    {hasFilters
-                      ? "No matching tasks"
-                      : readOnly
-                        ? "No tasks in this column"
-                        : "Add a task to get started"}
-                  </div>
+      <DndContext
+        sensors={dnd.sensors}
+        collisionDetection={closestCorners}
+        onDragStart={dnd.onDragStart}
+        onDragOver={dnd.onDragOver}
+        onDragEnd={dnd.onDragEnd}
+        onDragCancel={dnd.onDragCancel}
+      >
+        <div className="flex h-full gap-3 overflow-x-auto p-4 pt-3 md:pt-4">
+          {columns.map((column, index) => {
+            const columnTasks = visibleTasks
+              .filter((task) => task.column_id === column.id)
+              .sort((a, b) => a.position - b.position);
+            const atWipLimit = column.wip_limit !== null && columnTasks.length >= column.wip_limit;
+            return (
+              <ColumnDropSurface
+                key={column.id}
+                columnId={column.id}
+                className={cn(
+                  "bg-card flex min-h-[calc(100dvh-180px)] w-[min(21rem,calc(100vw-2rem))] shrink-0 flex-col rounded-xl shadow-sm ring-1 ring-black/5 md:w-72",
+                  index !== activeColumn && "max-md:hidden",
                 )}
-              </div>
-              {!readOnly && (
-                <TaskComposer
-                  projectId={projectId}
-                  columnId={column.id}
-                  onCreated={appendTask}
-                  inputRef={index === 0 ? composerRef : undefined}
-                />
-              )}
-            </section>
-          );
-        })}
-      </div>
+              >
+                <header className="bg-card sticky top-0 z-10 flex items-center justify-between rounded-t-xl border-b px-4 py-3">
+                  <div className="min-w-0">
+                    <h2 className="truncate font-semibold">{column.name}</h2>
+                    <p
+                      className={cn(
+                        "mt-0.5 flex items-center gap-1 text-xs",
+                        atWipLimit
+                          ? "font-medium text-amber-700 dark:text-amber-400"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {columnTasks.length} {columnTasks.length === 1 ? "task" : "tasks"}
+                      {column.wip_limit ? ` · WIP ${column.wip_limit}` : ""}
+                      {column.wip_limit && ` ${columnTasks.length}/${column.wip_limit}`}
+                      {atWipLimit && <TriangleAlert className="size-3" aria-label="At WIP limit" />}
+                    </p>
+                  </div>
+                  {!readOnly && (
+                    <Plus className="text-muted-foreground size-4" aria-hidden="true" />
+                  )}
+                </header>
+                <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
+                  <SortableContext
+                    items={columnTasks.map((task) => task.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {columnTasks.map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        columns={columns}
+                        readOnly={readOnly}
+                        moving={movingTaskId === task.id}
+                        onMove={moveTask}
+                        onOpen={() => setEditingTask(task)}
+                      />
+                    ))}
+                  </SortableContext>
+                  {columnTasks.length === 0 && (
+                    <div className="text-muted-foreground flex min-h-28 items-center justify-center rounded-lg border border-dashed px-4 text-center text-sm">
+                      {hasFilters
+                        ? "No matching tasks"
+                        : readOnly
+                          ? "No tasks in this column"
+                          : "Add a task to get started"}
+                    </div>
+                  )}
+                </div>
+                {!readOnly && (
+                  <TaskComposer
+                    projectId={projectId}
+                    columnId={column.id}
+                    onCreated={appendTask}
+                    inputRef={index === activeColumn ? composerRef : undefined}
+                  />
+                )}
+              </ColumnDropSurface>
+            );
+          })}
+        </div>
+        <DragOverlay>
+          {dnd.activeTask && (
+            <TaskCard
+              task={dnd.activeTask}
+              columns={columns}
+              readOnly
+              moving={false}
+              onMove={moveTask}
+              onOpen={() => {}}
+            />
+          )}
+        </DragOverlay>
+      </DndContext>
       {moveError && (
         <p className="sr-only" role="alert">
           {moveError}
@@ -338,6 +426,20 @@ export function ProjectBoard({
       )}
       {editingTask && (
         <TaskEditor
+          projectId={projectId}
+          currentUserId={currentUserId}
+          currentUserRole={currentUserRole}
+          peers={peers}
+          projectLabels={projectLabels}
+          commentRevision={commentRevision}
+          onLabelsSaved={(labels) => {
+            setTasks((current) =>
+              current.map((candidate) =>
+                candidate.id === editingTask.id ? { ...candidate, labels } : candidate,
+              ),
+            );
+            setEditingTask((current) => (current ? { ...current, labels } : current));
+          }}
           task={editingTask}
           readOnly={readOnly}
           onClose={() => setEditingTask(null)}
@@ -349,7 +451,7 @@ export function ProjectBoard({
   );
 }
 
-function TaskComposer({
+export function TaskComposer({
   projectId,
   columnId,
   onCreated,
@@ -361,11 +463,12 @@ function TaskComposer({
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
 }) {
   const [title, setTitle] = useState("");
+  const [unsavedTitle, setUnsavedTitle] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  async function submit() {
-    const trimmedTitle = title.trim();
+  async function submit(titleToSave = title) {
+    const trimmedTitle = titleToSave.trim();
     if (!trimmedTitle) {
       setError("Add a task title first.");
       return;
@@ -385,8 +488,11 @@ function TaskComposer({
       }
       onCreated(payload.data);
       setTitle("");
+      setUnsavedTitle(null);
     } catch {
-      setError("You appear to be offline. Reconnect and try again.");
+      setTitle("");
+      setUnsavedTitle(trimmedTitle);
+      setError("Your task is saved locally until you can retry.");
     } finally {
       setPending(false);
     }
@@ -430,6 +536,22 @@ function TaskComposer({
           <Plus /> {pending ? "Adding" : "Add"}
         </Button>
       </div>
+      {unsavedTitle && (
+        <div className="bg-muted mt-3 flex items-center justify-between gap-3 rounded-md px-3 py-2 text-sm">
+          <span className="min-w-0 truncate">
+            <strong>Unsaved</strong> · {unsavedTitle}
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() => void submit(unsavedTitle)}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
       {error && (
         <p className="text-destructive mt-2 text-sm" role="alert">
           {error}
@@ -454,16 +576,29 @@ function TaskCard({
   onMove: (task: BoardTask, columnId: string) => Promise<void>;
   onOpen: () => void;
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+    data: { type: "task", columnId: task.column_id },
+    disabled: readOnly,
+  });
+  const reduceMotion =
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const due = task.due_date ? new Date(`${task.due_date}T00:00:00`) : null;
   const isOverdue = due ? due < startOfToday() : false;
   return (
     <article
-      draggable={!readOnly && !moving}
-      onDragStart={(event) => event.dataTransfer.setData("text/plain", task.id)}
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition: reduceMotion ? undefined : transition,
+      }}
+      {...(readOnly ? {} : attributes)}
+      {...(readOnly ? {} : listeners)}
+      aria-roledescription={readOnly ? undefined : "sortable task card"}
       className={cn(
         "bg-background rounded-lg border p-3 shadow-sm transition-shadow hover:shadow-md",
         !readOnly && "cursor-grab active:cursor-grabbing",
-        moving && "opacity-50",
+        (moving || isDragging) && "opacity-50",
       )}
     >
       <button
@@ -473,6 +608,13 @@ function TaskCard({
       >
         {task.title}
       </button>
+      {task.labels && task.labels.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {task.labels.map((label) => (
+            <LabelChip key={label.id} name={label.name} color={label.color} />
+          ))}
+        </div>
+      )}
       <div className="mt-3 flex items-center justify-between gap-2 text-xs">
         <span
           className={cn("inline-flex items-center gap-1 capitalize", priorityColor(task.priority))}
@@ -515,6 +657,26 @@ function TaskCard({
   );
 }
 
+function ColumnDropSurface({
+  columnId,
+  className,
+  children,
+}: {
+  columnId: string;
+  className: string;
+  children: React.ReactNode;
+}) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `column:${columnId}`,
+    data: { type: "column", columnId },
+  });
+  return (
+    <section ref={setNodeRef} className={cn(className, isOver && "ring-primary ring-2")}>
+      {children}
+    </section>
+  );
+}
+
 function isBoardTask(value: unknown): value is { data: BoardTask } {
   if (typeof value !== "object" || value === null || !("data" in value)) return false;
   const task = value.data;
@@ -527,13 +689,43 @@ function isBoardTask(value: unknown): value is { data: BoardTask } {
   );
 }
 
+function isConflictPayload(
+  value: unknown,
+): value is { error: { details: { current: BoardTask } } } {
+  if (typeof value !== "object" || value === null || !("error" in value)) return false;
+  const error = value.error;
+  if (typeof error !== "object" || error === null || !("details" in error)) return false;
+  const details = error.details;
+  return (
+    typeof details === "object" &&
+    details !== null &&
+    "current" in details &&
+    typeof details.current === "object" &&
+    details.current !== null
+  );
+}
+
 function TaskEditor({
+  projectId,
+  currentUserId,
+  currentUserRole,
+  peers,
+  projectLabels,
+  commentRevision,
+  onLabelsSaved,
   task,
   readOnly,
   onClose,
   onSaved,
   onDeleted,
 }: {
+  projectId: string;
+  currentUserId: string;
+  currentUserRole: "owner" | "admin" | "member" | "viewer";
+  peers: PeerOption[];
+  projectLabels: LabelOption[];
+  commentRevision: number;
+  onLabelsSaved: (labels: LabelOption[]) => void;
   task: BoardTask;
   readOnly: boolean;
   onClose: () => void;
@@ -544,12 +736,15 @@ function TaskEditor({
   const [description, setDescription] = useState(task.description ?? "");
   const [dueDate, setDueDate] = useState(task.due_date ?? "");
   const [priority, setPriority] = useState<BoardTask["priority"]>(task.priority);
+  const [assigneeId, setAssigneeId] = useState<string | null>(task.assignee_id ?? null);
+  const [labelIds, setLabelIds] = useState<string[]>(task.labels?.map((label) => label.id) ?? []);
+  const [expectedUpdatedAt, setExpectedUpdatedAt] = useState(task.updated_at);
+  const [conflict, setConflict] = useState<BoardTask | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  async function save(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function save(expectedAt = expectedUpdatedAt) {
     if (!title.trim()) {
       setError("A task needs a title.");
       return;
@@ -565,9 +760,15 @@ function TaskEditor({
           description: description.trim() || null,
           dueDate: dueDate || null,
           priority,
+          assigneeId,
+          expectedUpdatedAt: expectedAt,
         }),
       });
       const payload: unknown = await response.json();
+      if (response.status === 409 && isConflictPayload(payload)) {
+        setConflict(payload.error.details.current);
+        return;
+      }
       if (!response.ok || !isBoardTask(payload)) {
         setError("Your changes could not be saved. Please try again.");
         return;
@@ -597,6 +798,30 @@ function TaskEditor({
     }
   }
 
+  async function saveLabels(ids: string[]) {
+    setError(null);
+    setPending(true);
+    try {
+      const response = await fetch(`/api/v1/tasks/${task.id}/labels`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ labelIds: ids }),
+      });
+      if (!response.ok) {
+        setError("Labels could not be saved. Please try again.");
+        return;
+      }
+      setLabelIds(ids);
+      onLabelsSaved(projectLabels.filter((label) => ids.includes(label.id)));
+    } catch {
+      setError(
+        "You appear to be offline. Your label changes are still here—try again when connected.",
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-6"
@@ -618,7 +843,13 @@ function TaskEditor({
             Close
           </Button>
         </div>
-        <form className="mt-5 space-y-5" onSubmit={(event) => void save(event)}>
+        <form
+          className="mt-5 space-y-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+        >
           <label className="block space-y-2 text-sm font-medium">
             Title
             <input
@@ -656,6 +887,12 @@ function TaskEditor({
                 <option value="urgent">Urgent</option>
               </select>
             </label>
+            <AssigneePicker
+              projectId={projectId}
+              value={assigneeId}
+              onChange={setAssigneeId}
+              disabled={readOnly || pending}
+            />
             <label className="block space-y-2 text-sm font-medium">
               Due date <span className="text-muted-foreground font-normal">(optional)</span>
               <input
@@ -667,11 +904,64 @@ function TaskEditor({
               />
             </label>
           </div>
+          <LabelPicker
+            labels={projectLabels}
+            selectedIds={labelIds}
+            onChange={(ids) => void saveLabels(ids)}
+            readOnly={readOnly || pending}
+          />
           <SubtaskList taskId={task.id} readOnly={readOnly} />
+          <CommentThread
+            key={task.id}
+            taskId={task.id}
+            projectId={projectId}
+            currentUserId={currentUserId}
+            currentUserRole={currentUserRole}
+            readOnly={readOnly}
+            peers={peers}
+            refreshVersion={commentRevision}
+          />
           {error && (
             <p role="alert" className="text-destructive text-sm">
               {error}
             </p>
+          )}
+          {conflict && (
+            <div
+              role="alert"
+              className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
+            >
+              <p className="font-medium">This task changed since you opened it.</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setTitle(conflict.title);
+                    setDescription(conflict.description ?? "");
+                    setDueDate(conflict.due_date ?? "");
+                    setPriority(conflict.priority);
+                    setAssigneeId(conflict.assignee_id ?? null);
+                    setExpectedUpdatedAt(conflict.updated_at);
+                    setConflict(null);
+                  }}
+                >
+                  Reload their version
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setExpectedUpdatedAt(conflict.updated_at);
+                    setConflict(null);
+                    void save(conflict.updated_at);
+                  }}
+                >
+                  Overwrite with mine
+                </Button>
+              </div>
+            </div>
           )}
           <div className="flex justify-end gap-3 border-t pt-4">
             {!readOnly &&
@@ -960,8 +1250,4 @@ function startOfToday() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return today;
-}
-
-function isPriority(value: string | null): value is BoardTask["priority"] {
-  return value === "low" || value === "medium" || value === "high" || value === "urgent";
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, ArrowLeft, LayoutList, Settings } from "lucide-react";
+import { Activity, ArrowLeft, LayoutList, Settings, Trash2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ProjectBoard, type BoardColumn, type BoardTask } from "@/components/board/project-board";
 import { BoardHeaderInvite } from "@/components/members/board-header-invite";
@@ -11,7 +11,7 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
   const [{ data: project }, { data: auth }] = await Promise.all([
     supabase
       .from("projects")
-      .select("id, name")
+      .select("id, name, timezone")
       .eq("id", projectId)
       .is("deleted_at", null)
       .maybeSingle(),
@@ -23,17 +23,18 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
     { data: taskData, error: tasksError },
     { data: membership },
     { data: memberData },
+    { data: labelData },
   ] = await Promise.all([
     supabase
       .from("columns")
-      .select("id, name, position, wip_limit")
+      .select("id, name, position, wip_limit, is_done_column")
       .eq("project_id", projectId)
       .is("deleted_at", null)
       .order("position"),
     supabase
       .from("tasks")
       .select(
-        "id, column_id, title, description, due_date, priority, position, created_at, updated_at",
+        "id, column_id, title, description, due_date, priority, position, assignee_id, created_at, updated_at, task_labels(labels(id, name, color))",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null)
@@ -43,6 +44,7 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
       .from("memberships")
       .select("user_id, project_peers!inner(id, display_name)")
       .eq("project_id", projectId),
+    supabase.from("labels").select("id, name, color").eq("project_id", projectId).order("name"),
   ]);
   if (columnsError || tasksError) {
     return (
@@ -52,7 +54,13 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
     );
   }
   const columns = (columnData ?? []) as BoardColumn[];
-  const tasks = (taskData ?? []) as BoardTask[];
+  const tasks = (taskData ?? []).map((task) => ({
+    ...task,
+    labels: (task.task_labels ?? []).flatMap((taskLabel) => {
+      const label = Array.isArray(taskLabel.labels) ? taskLabel.labels[0] : taskLabel.labels;
+      return label ? [{ id: label.id, name: label.name, color: label.color }] : [];
+    }),
+  })) as BoardTask[];
   const members = (memberData ?? []).map((row) => {
     const peer = Array.isArray(row.project_peers) ? row.project_peers[0] : row.project_peers;
     return { userId: row.user_id, displayName: peer?.display_name ?? "Unknown" };
@@ -96,6 +104,14 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
             >
               <Activity className="size-4" /> Activity
             </Link>
+            {membership?.role !== "viewer" && (
+              <Link
+                href={`/p/${projectId}/trash`}
+                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm font-medium"
+              >
+                <Trash2 className="size-4" /> Trash
+              </Link>
+            )}
             {membership?.role === "viewer" && (
               <span className="bg-muted text-muted-foreground rounded-full px-2.5 py-1 text-xs font-medium">
                 View only
@@ -110,6 +126,13 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
         initialColumns={columns}
         initialTasks={tasks}
         readOnly={membership?.role === "viewer"}
+        currentUserRole={membership?.role ?? "viewer"}
+        peers={members.map((member) => ({
+          userId: member.userId,
+          displayName: member.displayName,
+        }))}
+        projectLabels={labelData ?? []}
+        projectTimezone={project.timezone}
       />
     </main>
   );
