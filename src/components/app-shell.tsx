@@ -45,6 +45,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           Kanbo
         </Link>
         <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-sm sm:gap-4">
+          <Link href="/my-tasks" className="hover:text-foreground shrink-0 font-medium">
+            My Tasks
+          </Link>
           <span className="max-w-36 truncate sm:max-w-64">
             {email ?? (accountError ? "Account unavailable" : "Loading account…")}
           </span>
