@@ -10,14 +10,14 @@ export default async function MyTasksPage() {
   const { data, error } = await supabase
     .from("tasks")
     .select(
-      "id, title, priority, due_date, columns!inner(name, is_done_column), projects!inner(id, name, timezone)",
+      "id, title, priority, due_date, columns!inner(name, is_done_column, projects!inner(id, name, timezone))",
     )
     .eq("assignee_id", auth.user.id)
     .is("deleted_at", null)
     .order("due_date", { ascending: true, nullsFirst: false });
   const tasks: MyTask[] = (data ?? []).map((row) => {
     const column = Array.isArray(row.columns) ? row.columns[0] : row.columns;
-    const project = Array.isArray(row.projects) ? row.projects[0] : row.projects;
+    const project = Array.isArray(column?.projects) ? column.projects[0] : column?.projects;
     return {
       id: row.id,
       title: row.title,

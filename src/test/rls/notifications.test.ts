@@ -73,4 +73,55 @@ describe("notification authorization and transactional fan-out", () => {
       .upsert({ user_id: fixture.aId, category: "mention", email: false });
     expect(denied.error).not.toBeNull();
   });
+
+  it("due_soon_scan notifies the assignee of a task due within 24h and not a task due later", async () => {
+    const admin = createAdminClient();
+    const soon = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const later = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const dueSoon = await fixture.a.rpc("create_task", {
+      p_project_id: fixture.projectId,
+      p_column_id: fixture.columnId,
+      p_title: "Due soon",
+      p_assignee_id: fixture.bId,
+      p_due_date: soon,
+    });
+    const dueLater = await fixture.a.rpc("create_task", {
+      p_project_id: fixture.projectId,
+      p_column_id: fixture.columnId,
+      p_title: "Due later",
+      p_assignee_id: fixture.bId,
+      p_due_date: later,
+    });
+    expect(dueSoon.error).toBeNull();
+    expect(dueLater.error).toBeNull();
+
+    const scan = await admin.rpc("due_soon_scan");
+    expect(scan.error).toBeNull();
+
+    const soonTask = Array.isArray(dueSoon.data) ? dueSoon.data[0] : dueSoon.data;
+    const laterTask = Array.isArray(dueLater.data) ? dueLater.data[0] : dueLater.data;
+    const soonNotified = await admin
+      .from("notifications")
+      .select("id")
+      .eq("task_id", soonTask.id)
+      .eq("type", "due_soon");
+    const laterNotified = await admin
+      .from("notifications")
+      .select("id")
+      .eq("task_id", laterTask.id)
+      .eq("type", "due_soon");
+    expect(soonNotified.data).toHaveLength(1);
+    expect(laterNotified.data).toEqual([]);
+
+    // Running the scan again must not duplicate (unique partial index on
+    // (task_id, type, user_id, payload->>'dueDate')).
+    const secondScan = await admin.rpc("due_soon_scan");
+    expect(secondScan.error).toBeNull();
+    const stillOne = await admin
+      .from("notifications")
+      .select("id")
+      .eq("task_id", soonTask.id)
+      .eq("type", "due_soon");
+    expect(stillOne.data).toHaveLength(1);
+  });
 });

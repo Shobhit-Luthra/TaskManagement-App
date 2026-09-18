@@ -5,11 +5,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/notifications/bell";
 import { createClient } from "@/lib/supabase/client";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [accountError, setAccountError] = useState(false);
   useEffect(() => {
     let active = true;
@@ -30,6 +32,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           return;
         }
         setEmail(data.user.email ?? "Signed in");
+        setUserId(data.user.id);
       })
       .catch(() => {
         if (active) setAccountError(true);
@@ -51,6 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="max-w-36 truncate sm:max-w-64">
             {email ?? (accountError ? "Account unavailable" : "Loading account…")}
           </span>
+          {userId && <NotificationBell userId={userId} />}
           <ThemeToggle />
           <SignOutButton />
         </div>
