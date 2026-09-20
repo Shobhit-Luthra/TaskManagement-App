@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, ArrowLeft, LayoutList, Settings, Trash2 } from "lucide-react";
+import { Activity, ArrowLeft, BarChart3, LayoutList, Settings, Trash2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ProjectBoard, type BoardColumn, type BoardTask } from "@/components/board/project-board";
 import { BoardHeaderInvite } from "@/components/members/board-header-invite";
@@ -103,6 +103,12 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
               className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm font-medium"
             >
               <Activity className="size-4" /> Activity
+            </Link>
+            <Link
+              href={`/p/${projectId}/analytics`}
+              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm font-medium"
+            >
+              <BarChart3 className="size-4" /> Analytics
             </Link>
             {membership?.role !== "viewer" && (
               <Link
