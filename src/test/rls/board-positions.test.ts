@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { seedIsolationFixture, type IsolationFixture } from "./setup";
 
 let fixture: IsolationFixture;
@@ -58,7 +59,9 @@ describe("renormalize_positions", () => {
       p_run_key: runKey,
     });
     expect(error).toBeNull();
-    const { data: job } = await fixture.a
+    // job_runs is service-role-only (deny-by-default RLS, no policies) —
+    // an authenticated client would correctly see zero rows here.
+    const { data: job } = await createAdminClient()
       .from("job_runs")
       .select("finished_at, error")
       .eq("job_name", "renormalize_positions")
