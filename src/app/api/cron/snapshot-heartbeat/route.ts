@@ -1,22 +1,16 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { log } from "@/lib/log";
-
-function constantTimeEquals(a: string, b: string): boolean {
-  const bufferA = Buffer.from(a);
-  const bufferB = Buffer.from(b);
-  if (bufferA.length !== bufferB.length) return false;
-  return timingSafeEqual(bufferA, bufferB);
-}
+import { verifyCronSecret } from "@/lib/cron/verify-secret";
 
 export async function POST(request: Request): Promise<Response> {
-  const secret = process.env.CRON_SECRET;
-  const auth = request.headers.get("authorization") ?? "";
-  if (!secret || !constantTimeEquals(auth, `Bearer ${secret}`)) {
+  const secret = process.env.CRON_SECRET ?? "";
+  const authHeader = request.headers.get("authorization");
+  const provided = authHeader?.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : null;
+  if (!secret || !verifyCronSecret(provided, secret)) {
     return NextResponse.json(
-      { error: { code: "UNAUTHENTICATED", message: "Unauthorized." } },
+      { error: { code: "UNAUTHENTICATED", message: "Invalid cron secret." } },
       { status: 401 },
     );
   }

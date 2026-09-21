@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ChartErrorBoundary } from "@/components/analytics/chart-error-boundary";
 import { StatTile } from "@/components/analytics/stat-tile";
@@ -21,6 +22,18 @@ export default async function AnalyticsPage({
     supabase.rpc("analytics_workload", { p_project_id: projectId }),
     supabase.rpc("analytics_summary", { p_project_id: projectId }),
   ]);
+
+  // A non-member gets P0002 (project-scoped 404, matching every other
+  // project-scoped read in this app) from every RPC above — surface it
+  // instead of rendering a zeroed dashboard that looks like real data. Any
+  // other error (timeout, migration drift) is a genuine failure, not "no
+  // data," so it must not render as legitimate zeros either.
+  const results = [throughput, cycleTime, flow, workload, summary];
+  if (results.some((r) => r.error?.code === "P0002")) notFound();
+  const firstError = results.find((r) => r.error)?.error;
+  if (firstError) {
+    throw new Error(`Analytics could not be loaded: ${firstError.message}`);
+  }
 
   const summaryRow = Array.isArray(summary.data) ? summary.data[0] : summary.data;
 
