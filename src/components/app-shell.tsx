@@ -51,9 +51,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/my-tasks" className="hover:text-foreground shrink-0 font-medium">
             My Tasks
           </Link>
-          <span className="max-w-36 truncate sm:max-w-64">
-            {email ?? (accountError ? "Account unavailable" : "Loading account…")}
-          </span>
+          {email ? (
+            <Link href="/account" className="hover:text-foreground max-w-36 truncate sm:max-w-64">
+              {email}
+            </Link>
+          ) : (
+            <span className="max-w-36 truncate sm:max-w-64">
+              {accountError ? "Account unavailable" : "Loading account…"}
+            </span>
+          )}
           {userId && <NotificationBell userId={userId} />}
           <ThemeToggle />
           <SignOutButton />
