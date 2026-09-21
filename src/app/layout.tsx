@@ -1,8 +1,17 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { JetBrains_Mono, Newsreader, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "next-themes";
+
+const newsreader = Newsreader({
+  variable: "--font-newsreader",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+});
+const jakarta = Plus_Jakarta_Sans({ variable: "--font-jakarta", subsets: ["latin"] });
+const jetbrains = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Kanbo",
@@ -13,7 +22,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>
+      <body className={`${newsreader.variable} ${jakarta.variable} ${jetbrains.variable}`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
