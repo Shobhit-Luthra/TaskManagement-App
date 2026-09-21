@@ -4,11 +4,19 @@
 
 | Environment | Database | App target | Migration authority |
 | --- | --- | --- | --- |
-| Development | `kanbo-dev` | Local | Developers |
-| Staging | `kanbo-staging` | Vercel preview/staging | CI or release operator |
-| Production | `kanbo-prod` | Vercel production | Release operator |
+| Development / CI | Supabase `Task Management App` (`bewkxittluulfnxjeojw`) | Local, Vercel previews | Developers |
+| Production | same project (see README "Deployment") | https://kanbo-orcin.vercel.app | Release operator |
 
-Never point a preview deployment at production data.
+Production launched 2026-09-21 on a single Supabase project. Split staging from production before onboarding real users.
+
+Scheduled jobs: `pg_cron` runs `due_soon_scan`, `purge_soft_deleted` and `board_snapshots` in-database, and calls back into the app (`/api/cron/notification-flush`, `/api/cron/snapshot-heartbeat`) using the Vault secrets `cron_site_url` and `cron_secret`; `cron_secret` must equal Vercel's `CRON_SECRET`. Rotate both together.
+
+## If the site is down
+
+1. Uptime monitor: not yet configured (Task 2G.7 Step 4 — add a free UptimeRobot check on `https://kanbo-orcin.vercel.app/` and record the link here).
+2. Vercel → project `kanbo` → Deployments: is the latest production deployment `Ready`? Roll back to the previous one if not.
+3. Supabase → project `Task Management App`: free projects pause after inactivity; restore it if paused.
+4. Sentry: not configured at launch; check Vercel runtime logs instead.
 
 ## Restore drill
 

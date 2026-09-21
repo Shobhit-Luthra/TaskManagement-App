@@ -62,13 +62,14 @@ Migrations live in `supabase/migrations/`. They establish the core data model, r
 
 ## Deployment
 
+Kanbo is live at **https://kanbo-orcin.vercel.app** (Vercel project `kanbo`, region `bom1`, auto-deployed from `main`).
+
 | Environment | Supabase project | Vercel target | Migration owner |
 | --- | --- | --- | --- |
-| Development | `kanbo-dev` | Local development | Developers |
-| Staging | `kanbo-staging` | Preview and staging alias | CI/operator |
-| Production | `kanbo-prod` | Production | Release operator |
+| Development | `Task Management App` (`bewkxittluulfnxjeojw`) | Local development | Developers |
+| Production | same project, for now | Production | Release operator |
 
-Previews must never point at production data. Apply migrations to the matching Supabase project before deploying its application.
+Launch decision (2026-09-21): one Supabase project serves both development/CI and production until there are real users, so CI's RLS suite creates and removes throwaway rows in the live database. Splitting into `kanbo-staging` / `kanbo-prod` is the first operational task once real data exists: create the second project, `supabase db push`, repoint the `STAGING_*` GitHub secrets at the non-production one.
 
 Set these variables for every environment: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_SENTRY_DSN`, `SUPABASE_SERVICE_ROLE_KEY`, `SENTRY_AUTH_TOKEN`, `CRON_SECRET`, `UNSUBSCRIBE_SECRET`, and `EMAIL_PROVIDER` (currently `console`). Keep server-only variables out of browser-prefixed names.
 
