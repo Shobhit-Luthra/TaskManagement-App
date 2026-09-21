@@ -48,6 +48,12 @@ README.md                                                          Task 2G.7 (mo
 
 ### Task 2G.5 — Account deletion (G6)
 
+> **Progress note (2026-09-21): shipped in `cbe1f54`.** Deviations from the steps below, all deliberate:
+> - Migration is `202609260001_account_deletion.sql` (the planned `202609200001_` would sort before the already-applied 2G.1–2G.4 migrations).
+> - RPC returns `(deleted boolean, tombstone_email text)` — `blocked_projects` is only ever raised as the exception `DETAIL`, never returned as a row, and the route needs the tombstone to sync `auth.users`. It also clears the user's `notifications`, `notification_queue`, `notification_preferences` and `idempotency_keys` rows.
+> - Route reads PostgREST's `error.details` (not `.detail`), and — because anonymising `public.users` alone leaves the credentials in `auth.users` working — also calls `auth.admin.updateUserById` (tombstone email + permanent ban) before `auth.admin.signOut(<jwt>, "global")` (which takes a JWT, not a user id). Verified end-to-end against `kanbo-dev`: old password rejected, old cookie → 401, original email reusable.
+> - No account settings page existed from 2F.5 (only the preferences API route shipped), so a minimal `src/app/(app)/account/page.tsx` was added and the header email now links to it.
+
 **Files:**
 - Create: `supabase/migrations/202609200001_account_deletion.sql`, `src/app/api/v1/users/me/route.ts`, `src/components/settings/danger-zone.tsx`, `src/components/settings/danger-zone.test.tsx`, `src/test/rls/account-deletion.test.ts`
 
@@ -57,7 +63,7 @@ README.md                                                          Task 2G.7 (mo
 
 **Security properties:** mirrors Task 2B.6's `soft_delete_project` Owner-guard exactly, at the user level: a user who is the sole Owner of any project (per `memberships` where `role = 'owner'` and no other Owner row exists for that `project_id` — the same query shape the `memberships_one_owner` unique index encodes) cannot delete their account until they transfer ownership or delete the project first; anonymisation replaces `display_name` with `"Deleted user"` and `email` with a per-row-unique tombstone (`deleted-<uuid>@kanbo.invalid` — the `citext unique` constraint on `users.email` means two anonymised rows cannot collide, and the value can never be a real deliverable address); `activity.actor_id` is preserved (the FK is `on delete set null`, but this RPC never deletes the `users` row, only anonymises it in place, so `actor_id` keeps pointing at a real — if anonymised — row and old activity entries still resolve to "Deleted user" instead of silently losing their actor); the caller's session is invalidated by the route handler immediately after a successful RPC call, before the response is returned, so a stolen bearer token from the same request cannot be replayed against any other endpoint.
 
-- [ ] **Step 1: Failing RLS test**
+- [x] **Step 1: Failing RLS test**
 
 ```ts
 // src/test/rls/account-deletion.test.ts
@@ -125,12 +131,12 @@ describe("delete_own_account (G6)", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `npm run test:rls -- src/test/rls/account-deletion.test.ts`
 Expected: FAIL — `delete_own_account()` does not exist.
 
-- [ ] **Step 3: Migration**
+- [x] **Step 3: Migration**
 
 ```sql
 -- supabase/migrations/202609200001_account_deletion.sql
@@ -196,12 +202,12 @@ grant execute on function public.delete_own_account() to authenticated;
 
 Note: `users.deleted_at` already exists in `202609090001_data_core.sql` but is not currently set by any code path — `handle_new_user`/`users_self` policy already filter nothing on it (the `users_self` policy is `id = auth.uid()`, unaffected by `deleted_at`), so setting it here is additive and does not change any existing RLS behaviour; it exists purely so a future "was this account ever deleted" check has a timestamp rather than only the tombstone email pattern to go on.
 
-- [ ] **Step 4: Apply and run the RLS suite**
+- [x] **Step 4: Apply and run the RLS suite**
 
 Run: `npm run db:push` then `npm run test:rls -- src/test/rls/account-deletion.test.ts`.
 Expected: PASS.
 
-- [ ] **Step 5: Route**
+- [x] **Step 5: Route**
 
 ```ts
 // src/app/api/v1/users/me/route.ts
@@ -248,7 +254,7 @@ export const DELETE = withApiHandler(
 );
 ```
 
-- [ ] **Step 6: Failing component test for the danger-zone confirmation**
+- [x] **Step 6: Failing component test for the danger-zone confirmation**
 
 ```tsx
 // src/components/settings/danger-zone.test.tsx
@@ -283,9 +289,9 @@ describe("DangerZone", () => {
 });
 ```
 
-- [ ] **Step 7: Run to verify it fails** — `npx vitest run src/components/settings/danger-zone.test.tsx` → FAIL, module not found.
+- [x] **Step 7: Run to verify it fails** — `npx vitest run src/components/settings/danger-zone.test.tsx` → FAIL, module not found.
 
-- [ ] **Step 8: Implement `DangerZone`**
+- [x] **Step 8: Implement `DangerZone`**
 
 ```tsx
 // src/components/settings/danger-zone.tsx
@@ -348,9 +354,9 @@ export function DangerZone({
 
 Wire `DangerZone` into the account settings page (created in 2F.5 per the roadmap) with an `onDelete` that calls `DELETE /api/v1/users/me`, throws an `Error` carrying the server's message and `blockedProjects` on non-2xx, and on success redirects to `/login` (the session is already invalidated server-side by Step 5) — follow the same `fetch`/`useState` error-surfacing pattern as `ProjectSettingsForm` (`src/components/projects/project-settings-form.tsx`) rather than introducing a new one.
 
-- [ ] **Step 9: Run to verify it passes** — `npx vitest run src/components/settings/danger-zone.test.tsx` → PASS.
+- [x] **Step 9: Run to verify it passes** — `npx vitest run src/components/settings/danger-zone.test.tsx` → PASS.
 
-- [ ] **Step 10: Run full checks and commit**
+- [x] **Step 10: Run full checks and commit**
 
 Run: `npm run test && npm run test:rls && npm run typecheck && npm run lint`
 Expected: all PASS.
