@@ -140,7 +140,9 @@ const RPC_ERROR_MAP: Record<string, { status: number; code: ApiErrorCode }> = {
   "42501": { status: 403, code: "FORBIDDEN" },
   "22023": { status: 422, code: "VALIDATION_ERROR" },
   "23505": { status: 409, code: "CONFLICT" },
-  "40001": { status: 409, code: "CONFLICT" },
+  // Optimistic-concurrency conflicts use a custom SQLSTATE: PostgREST retries
+  // 40001 indefinitely instead of surfacing it.
+  P0004: { status: 409, code: "CONFLICT" },
 };
 
 export function mapRpcError(

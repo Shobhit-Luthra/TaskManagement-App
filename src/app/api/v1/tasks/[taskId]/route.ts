@@ -23,7 +23,7 @@ export const PATCH = withApiHandler(
       p_assignee_id: body.assigneeId ?? null,
       p_expected_updated_at: body.expectedUpdatedAt ?? null,
     });
-    if (error?.code === "40001") {
+    if (error?.code === "P0004") {
       const { data: current } = await supabase
         .from("tasks")
         .select(

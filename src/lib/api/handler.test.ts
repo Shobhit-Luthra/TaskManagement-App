@@ -179,7 +179,7 @@ describe("mapRpcError", () => {
     ["42501", 403, "FORBIDDEN"],
     ["22023", 422, "VALIDATION_ERROR"],
     ["23505", 409, "CONFLICT"],
-    ["40001", 409, "CONFLICT"],
+    ["P0004", 409, "CONFLICT"],
     ["XX000", 500, "INTERNAL_ERROR"],
   ])("maps %s to %i %s", async (code, status, apiCode) => {
     const response = mapRpcError({ code }, base);

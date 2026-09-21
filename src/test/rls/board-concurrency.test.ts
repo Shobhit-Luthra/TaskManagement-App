@@ -38,7 +38,7 @@ describe("update_task optimistic concurrency", () => {
       p_assignee_id: null,
       p_expected_updated_at: before!.updated_at,
     });
-    expect(second.error?.code).toBe("40001");
+    expect(second.error?.code).toBe("P0004");
     const { data: after } = await fixture.a
       .from("tasks")
       .select("title")

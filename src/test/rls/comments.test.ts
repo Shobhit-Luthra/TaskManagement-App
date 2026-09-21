@@ -74,6 +74,6 @@ describe("comment authorization and mention resolution", () => {
       p_mentioned_user_ids: [],
       p_expected_updated_at: row!.updated_at,
     });
-    expect(stale.error?.code).toBe("40001");
+    expect(stale.error?.code).toBe("P0004");
   });
 });
