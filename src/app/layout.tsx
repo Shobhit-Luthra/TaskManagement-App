@@ -4,6 +4,7 @@ import { JetBrains_Mono, Newsreader, Plus_Jakarta_Sans } from "next/font/google"
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "next-themes";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const newsreader = Newsreader({
   variable: "--font-newsreader",
@@ -30,8 +31,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           disableTransitionOnChange
           nonce={nonce}
         >
-          {children}
-          <Toaster />
+          <TooltipProvider>
+            {children}
+            <Toaster />
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>
