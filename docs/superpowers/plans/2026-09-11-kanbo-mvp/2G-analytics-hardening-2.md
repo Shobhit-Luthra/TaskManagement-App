@@ -370,6 +370,15 @@ git commit -m "feat(account): add account deletion with a sole-Owner guard and a
 
 ### Task 2G.6 — CSP nonce (T6) + security acceptance run
 
+> **Progress note (2026-09-21): shipped in `b458176` (code) + the docs commit that follows.** Deviations, all deliberate:
+> - The root `middleware.ts` was **never being registered by Next** — with a `src/` directory the file must live in `src/`. It is now `src/proxy.ts` (Next 16's preferred name/export). Consequence: the session refresh and signed-out → `/login` redirect had been inert since the auth commit; page-level checks and RLS were the only protection. Fixed as part of this task.
+> - Next reads the nonce off the forwarded **request's** `Content-Security-Policy` header, so the proxy sets CSP on both request and response; `x-nonce` is set for our own server components. Nonce comes from Web Crypto (`crypto.getRandomValues`), not `node:crypto`, so it works on either runtime.
+> - `next-themes`' anti-flash inline script needs the nonce too: `RootLayout` reads `x-nonce` via `headers()` and passes `nonce` to `ThemeProvider`; `<html suppressHydrationWarning>` added per next-themes docs.
+> - `securityHeaders()` no longer takes `supabaseUrl` (only CSP used it).
+> - Verified on a **production build** with headless Chrome over CDP (signed-in): login, projects, board, analytics, account hydrate with zero CSP violations; Realtime websocket allowed; nonce differs per request; every `<script>` carries it.
+> - `docs/security-acceptance.md` records the real `07 §18` numbering (the skeleton in Step 8 guessed wrong): 6 Full / 6 Partial with named gaps for the 2G.7 gate.
+> - **Found while running Step 9's `npm run test:rls`:** `board-concurrency` and `comments` stale-write tests hang 30 s — the RPCs raise SQLSTATE `40001`, which PostgREST 14 treats as transient and retries indefinitely (Supabase troubleshooting doc "SQLSTATE 40001 in an RPC function causes infinite retries"). Pre-existing, user-facing (stale task/comment edits hang instead of showing the conflict banner). Fixed in the follow-up commit on this branch by raising a custom SQLSTATE mapped to 409.
+
 **Files:**
 - Create: `src/lib/security/csp.ts`, `src/lib/security/csp.test.ts`, `docs/security-acceptance.md`
 - Modify: `middleware.ts`, `src/lib/security/headers.ts`, `next.config.ts`
@@ -379,7 +388,7 @@ git commit -m "feat(account): add account deletion with a sole-Owner guard and a
 
 **Security properties:** the nonce is 16+ CSPRNG bytes, base64-encoded, generated fresh per request (never reused across requests, never derived from anything guessable like the request path or timestamp); `script-src` in production contains only `'self'` and the per-request nonce — `'unsafe-inline'` is gone; the nonce never appears in a log line (it's a header value, not passed to `log()`).
 
-- [ ] **Step 1: Failing test for `buildCsp`**
+- [x] **Step 1: Failing test for `buildCsp`**
 
 ```ts
 // src/lib/security/csp.test.ts
@@ -410,12 +419,12 @@ describe("buildCsp", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `npx vitest run src/lib/security/csp.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement `buildCsp`**
+- [x] **Step 3: Implement `buildCsp`**
 
 ```ts
 // src/lib/security/csp.ts
@@ -444,9 +453,9 @@ export function buildCsp(params: {
 }
 ```
 
-- [ ] **Step 4: Run to verify it passes** — `npx vitest run src/lib/security/csp.test.ts` → PASS.
+- [x] **Step 4: Run to verify it passes** — `npx vitest run src/lib/security/csp.test.ts` → PASS.
 
-- [ ] **Step 5: Wire the nonce through middleware**
+- [x] **Step 5: Wire the nonce through middleware**
 
 Read `src/lib/supabase/middleware.ts` and `middleware.ts` first (both already shown in this plan's grounding — `updateSession` builds a `NextResponse` incrementally as cookies are set) so the nonce logic composes with the existing session-refresh response rather than replacing it.
 
@@ -487,7 +496,7 @@ export const config = {
 
 `updateSession` currently returns `NextResponse.next({ request })`/`NextResponse.redirect(url)` — both are plain `Response`-like objects that accept `.headers.set(...)`, so setting the CSP header after the fact on whatever `updateSession` produced (redirect included — a redirect response still needs security headers) is safe and requires no change to `src/lib/supabase/middleware.ts` itself.
 
-- [ ] **Step 6: Drop script-src from the static headers, keep everything else**
+- [x] **Step 6: Drop script-src from the static headers, keep everything else**
 
 ```ts
 // src/lib/security/headers.ts
@@ -509,12 +518,12 @@ export function securityHeaders(supabaseUrl: string) {
 
 `next.config.ts`'s `headers()` function is unchanged — it still calls `securityHeaders(supabaseUrl)`, which now simply returns a shorter list. Confirm the existing test for `securityHeaders` (if one exists) is updated to match the new return shape rather than asserting on the removed CSP entry.
 
-- [ ] **Step 7: Run full checks**
+- [x] **Step 7: Run full checks**
 
 Run: `npm run test && npm run typecheck && npm run lint && npm run build`
 Expected: all PASS. Manually load the app in a dev server and confirm in DevTools → Network → any document response that `Content-Security-Policy` has `script-src 'self' 'nonce-…'` with a different nonce value on every reload, and that the page still hydrates (confirms Next is actually reading `x-nonce` and stamping it onto its own script tags).
 
-- [ ] **Step 8: Security acceptance walk — write `docs/security-acceptance.md`**
+- [x] **Step 8: Security acceptance walk — write `docs/security-acceptance.md`**
 
 Walk `docs/specs/07 §18` items 1–12 one by one. For each item, name the concrete test file(s)/CI job that proves it and a one-line note; below is the skeleton this plan can already fill in from tests written across 2A–2G (an agent executing this step must open `07 §18` itself to confirm each item's exact wording and check nothing is missed — the list below is this plan's best-effort mapping from the roadmap's own item references, not a substitute for reading the source spec):
 
@@ -538,7 +547,7 @@ Walk `docs/specs/07 §18` items 1–12 one by one. For each item, name the concr
 Items 3, 8, 10, 11 (fill in against the actual `07 §18` numbering — this plan was written without that file's exact item text in context) map to the CSRF/origin check in `withApiHandler` (`src/lib/api/handler.ts`'s origin-mismatch branch), the Idempotency-Key replay tests (`src/lib/api/idempotency.test.ts`), the unsubscribe-token constant-time verify (2F.5), and the cron `CRON_SECRET` constant-time compare (2G.1) respectively — confirm each against the spec text before marking this table complete.
 ```
 
-- [ ] **Step 9: Run full checks and commit**
+- [x] **Step 9: Run full checks and commit**
 
 Run: `npm run test && npm run test:rls && npm run typecheck && npm run lint && npm run build`
 Expected: all PASS.
