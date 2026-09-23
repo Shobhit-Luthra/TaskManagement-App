@@ -50,8 +50,8 @@ export function FilterBar({
         : id;
   return (
     <div className="bg-background flex flex-col gap-2 border-b px-4 py-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <label className="relative min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="relative min-w-0 basis-full sm:flex-1 sm:basis-auto">
           <span className="sr-only">Search tasks</span>
           <Search
             className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"

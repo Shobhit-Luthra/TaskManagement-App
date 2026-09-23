@@ -36,7 +36,7 @@ describe("NotificationBell", () => {
   it("shows the unread count from the initial fetch", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ json: async () => ({ data: NOTIFICATIONS }) }),
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: NOTIFICATIONS }) }),
     );
     render(<NotificationBell userId="user-1" />);
     await waitFor(() =>
@@ -50,7 +50,10 @@ describe("NotificationBell", () => {
       id: `n${i}`,
       read_at: null,
     }));
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ data: many }) }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: many }) }),
+    );
     render(<NotificationBell userId="user-1" />);
     await waitFor(() => expect(screen.getByText("9+")).toBeInTheDocument());
   });
@@ -58,9 +61,9 @@ describe("NotificationBell", () => {
   it("opens the list, marks all read, and clears the badge", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({ json: async () => ({ data: NOTIFICATIONS }) }) // bell's own fetch
-      .mockResolvedValueOnce({ json: async () => ({ data: NOTIFICATIONS }) }) // list's fetch
-      .mockResolvedValueOnce({ json: async () => ({}) }); // read-all
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: NOTIFICATIONS }) }) // bell's own fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: NOTIFICATIONS }) }) // list's fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) }); // read-all
     vi.stubGlobal("fetch", fetchMock);
 
     render(<NotificationBell userId="user-1" />);
@@ -77,4 +80,22 @@ describe("NotificationBell", () => {
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/notifications/read-all", { method: "POST" });
   });
+});
+
+it("retains unread state when marking a notification fails", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: NOTIFICATIONS }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: NOTIFICATIONS }) })
+      .mockResolvedValueOnce({ ok: false, status: 500 }),
+  );
+  render(<NotificationBell userId="user-1" />);
+  await userEvent.click(await screen.findByLabelText("Notifications, 1 unread"));
+  await userEvent.click(await screen.findByRole("button", { name: /Mark as read:/ }));
+  await screen.findByRole("alert");
+  expect(screen.getByText("1 unread")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("tab", { name: "Mentions" }));
+  expect(screen.getByText("No mentions notifications.")).toBeInTheDocument();
 });

@@ -32,7 +32,9 @@ export default async function MyTasksPage() {
   });
   return (
     <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <h1 className="text-2xl font-semibold tracking-tight">My Tasks</h1>
+      <h1 className="text-headline-lg-mobile sm:text-headline-lg font-serif font-medium">
+        My Tasks
+      </h1>
       <p className="text-muted-foreground mt-1 text-sm">
         Open tasks assigned to you, across every project.
       </p>

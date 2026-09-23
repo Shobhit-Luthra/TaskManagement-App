@@ -6,14 +6,11 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import {
   CalendarDays,
-  Check,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
   Flag,
-  LoaderCircle,
   Plus,
-  Trash2,
   TriangleAlert,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -28,11 +25,10 @@ import { useProjectChannel } from "@/lib/realtime/use-project-channel";
 import { cn } from "@/lib/utils";
 import { useBoardDnd } from "./use-board-dnd";
 import { Announcer, type AnnouncerHandle } from "./announcer";
-import { AssigneePicker } from "./assignee-picker";
-import { CommentThread } from "./comment-thread";
+import { TaskDetailDrawer, isBoardTask } from "./task-detail-drawer";
 import type { PeerOption } from "./mention-autocomplete";
 import { LabelChip } from "@/components/labels/label-chip";
-import { LabelPicker, type LabelOption } from "@/components/labels/label-picker";
+import { type LabelOption } from "@/components/labels/label-picker";
 import { applyFilters } from "@/lib/filters/apply";
 import { useFilterState } from "./use-filter-state";
 import { FilterBar } from "./filter-bar";
@@ -222,18 +218,27 @@ export function ProjectBoard({
     },
   });
 
+  function closeTask() {
+    setEditingTask(null);
+    if (searchParams.has("task")) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("task");
+      router.replace(`/p/${projectId}/board${params.size ? `?${params}` : ""}`, { scroll: false });
+    }
+  }
+
   function updateTask(task: BoardTask) {
     setTasks((current) =>
       current.map((candidate) =>
         candidate.id === task.id ? { ...candidate, ...task } : candidate,
       ),
     );
-    setEditingTask(null);
+    closeTask();
   }
 
   function deleteTask(taskId: string) {
     setTasks((current) => current.filter((task) => task.id !== taskId));
-    setEditingTask(null);
+    closeTask();
   }
 
   const visibleTasks = applyFilters(
@@ -266,7 +271,7 @@ export function ProjectBoard({
   }
 
   return (
-    <section aria-label="Board columns" className="bg-muted/40 relative flex-1 overflow-hidden">
+    <section aria-label="Board columns" className="bg-surface-low relative flex-1 overflow-hidden">
       <Announcer ref={announcerRef} />
       {syncStatus === "reconnecting" && (
         <p
@@ -324,6 +329,7 @@ export function ProjectBoard({
         </Button>
       </div>
       <DndContext
+        id={`board-${projectId}`}
         sensors={dnd.sensors}
         collisionDetection={closestCorners}
         onDragStart={dnd.onDragStart}
@@ -342,13 +348,15 @@ export function ProjectBoard({
                 key={column.id}
                 columnId={column.id}
                 className={cn(
-                  "bg-card flex min-h-[calc(100dvh-180px)] w-[min(21rem,calc(100vw-2rem))] shrink-0 flex-col rounded-xl shadow-sm ring-1 ring-black/5 md:w-72",
+                  "bg-card flex min-h-[28rem] w-[min(21rem,calc(100vw-2rem))] shrink-0 flex-col rounded-xl border md:w-80",
                   index !== activeColumn && "max-md:hidden",
                 )}
               >
                 <header className="bg-card sticky top-0 z-10 flex items-center justify-between rounded-t-xl border-b px-4 py-3">
                   <div className="min-w-0">
-                    <h2 className="truncate font-semibold">{column.name}</h2>
+                    <h2 className="text-headline-md truncate font-serif font-medium">
+                      {column.name}
+                    </h2>
                     <p
                       className={cn(
                         "mt-0.5 flex items-center gap-1 text-xs",
@@ -374,6 +382,7 @@ export function ProjectBoard({
                   >
                     {columnTasks.map((task) => (
                       <TaskCard
+                        peers={peers}
                         key={task.id}
                         task={task}
                         columns={columns}
@@ -409,6 +418,7 @@ export function ProjectBoard({
         <DragOverlay>
           {dnd.activeTask && (
             <TaskCard
+              peers={peers}
               task={dnd.activeTask}
               columns={columns}
               readOnly
@@ -425,7 +435,8 @@ export function ProjectBoard({
         </p>
       )}
       {editingTask && (
-        <TaskEditor
+        <TaskDetailDrawer
+          key={editingTask.id}
           projectId={projectId}
           currentUserId={currentUserId}
           currentUserRole={currentUserRole}
@@ -442,7 +453,7 @@ export function ProjectBoard({
           }}
           task={editingTask}
           readOnly={readOnly}
-          onClose={() => setEditingTask(null)}
+          onClose={closeTask}
           onSaved={updateTask}
           onDeleted={deleteTask}
         />
@@ -463,6 +474,7 @@ export function TaskComposer({
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
 }) {
   const [title, setTitle] = useState("");
+  const [priority, setPriority] = useState<BoardTask["priority"]>("medium");
   const [unsavedTitle, setUnsavedTitle] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -479,7 +491,7 @@ export function TaskComposer({
       const response = await fetch(`/api/v1/projects/${projectId}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: trimmedTitle, columnId }),
+        body: JSON.stringify({ title: trimmedTitle, columnId, priority }),
       });
       const payload: unknown = await response.json();
       if (!response.ok || !isBoardTask(payload)) {
@@ -488,6 +500,7 @@ export function TaskComposer({
       }
       onCreated(payload.data);
       setTitle("");
+      setPriority("medium");
       setUnsavedTitle(null);
     } catch {
       setTitle("");
@@ -532,9 +545,26 @@ export function TaskComposer({
       />
       <div className="mt-2 flex items-center justify-between gap-2">
         <p className="text-muted-foreground text-xs">Enter to add · Shift + Enter for a new line</p>
-        <Button size="sm" type="submit" disabled={pending || title.trim().length === 0}>
-          <Plus /> {pending ? "Adding" : "Add"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <label className="sr-only" htmlFor={`task-priority-${columnId}`}>
+            Priority
+          </label>
+          <select
+            id={`task-priority-${columnId}`}
+            value={priority}
+            onChange={(event) => setPriority(event.target.value as BoardTask["priority"])}
+            disabled={pending}
+            className="bg-background focus-visible:border-ring focus-visible:ring-ring/40 rounded-md border px-2 py-1.5 text-xs outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="urgent">Urgent</option>
+          </select>
+          <Button size="sm" type="submit" disabled={pending || title.trim().length === 0}>
+            <Plus /> {pending ? "Adding" : "Add"}
+          </Button>
+        </div>
       </div>
       {unsavedTitle && (
         <div className="bg-muted mt-3 flex items-center justify-between gap-3 rounded-md px-3 py-2 text-sm">
@@ -562,6 +592,7 @@ export function TaskComposer({
 }
 
 function TaskCard({
+  peers,
   task,
   columns,
   readOnly,
@@ -569,6 +600,7 @@ function TaskCard({
   onMove,
   onOpen,
 }: {
+  peers: PeerOption[];
   task: BoardTask;
   columns: BoardColumn[];
   readOnly: boolean;
@@ -585,6 +617,7 @@ function TaskCard({
     typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const due = task.due_date ? new Date(`${task.due_date}T00:00:00`) : null;
   const isOverdue = due ? due < startOfToday() : false;
+  const assignee = peers.find((peer) => peer.userId === task.assignee_id);
   return (
     <article
       ref={setNodeRef}
@@ -596,7 +629,7 @@ function TaskCard({
       {...(readOnly ? {} : listeners)}
       aria-roledescription={readOnly ? undefined : "sortable task card"}
       className={cn(
-        "bg-background rounded-lg border p-3 shadow-sm transition-shadow hover:shadow-md",
+        "bg-surface-lowest hover:border-outline rounded-lg border p-4 transition-colors",
         !readOnly && "cursor-grab active:cursor-grabbing",
         (moving || isDragging) && "opacity-50",
       )}
@@ -614,6 +647,17 @@ function TaskCard({
             <LabelChip key={label.id} name={label.name} color={label.color} />
           ))}
         </div>
+      )}
+      {assignee && (
+        <p className="text-muted-foreground mt-3 flex items-center gap-2 text-xs">
+          <span
+            aria-hidden="true"
+            className="bg-secondary text-secondary-foreground flex size-6 items-center justify-center rounded-full font-medium"
+          >
+            {assignee.displayName.slice(0, 2).toUpperCase()}
+          </span>
+          <span className="truncate">{assignee.displayName}</span>
+        </p>
       )}
       <div className="mt-3 flex items-center justify-between gap-2 text-xs">
         <span
@@ -677,549 +721,6 @@ function ColumnDropSurface({
   );
 }
 
-function isBoardTask(value: unknown): value is { data: BoardTask } {
-  if (typeof value !== "object" || value === null || !("data" in value)) return false;
-  const task = value.data;
-  return (
-    typeof task === "object" &&
-    task !== null &&
-    "id" in task &&
-    typeof task.id === "string" &&
-    "column_id" in task
-  );
-}
-
-function isConflictPayload(
-  value: unknown,
-): value is { error: { details: { current: BoardTask } } } {
-  if (typeof value !== "object" || value === null || !("error" in value)) return false;
-  const error = value.error;
-  if (typeof error !== "object" || error === null || !("details" in error)) return false;
-  const details = error.details;
-  return (
-    typeof details === "object" &&
-    details !== null &&
-    "current" in details &&
-    typeof details.current === "object" &&
-    details.current !== null
-  );
-}
-
-function TaskEditor({
-  projectId,
-  currentUserId,
-  currentUserRole,
-  peers,
-  projectLabels,
-  commentRevision,
-  onLabelsSaved,
-  task,
-  readOnly,
-  onClose,
-  onSaved,
-  onDeleted,
-}: {
-  projectId: string;
-  currentUserId: string;
-  currentUserRole: "owner" | "admin" | "member" | "viewer";
-  peers: PeerOption[];
-  projectLabels: LabelOption[];
-  commentRevision: number;
-  onLabelsSaved: (labels: LabelOption[]) => void;
-  task: BoardTask;
-  readOnly: boolean;
-  onClose: () => void;
-  onSaved: (task: BoardTask) => void;
-  onDeleted: (taskId: string) => void;
-}) {
-  const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description ?? "");
-  const [dueDate, setDueDate] = useState(task.due_date ?? "");
-  const [priority, setPriority] = useState<BoardTask["priority"]>(task.priority);
-  const [assigneeId, setAssigneeId] = useState<string | null>(task.assignee_id ?? null);
-  const [labelIds, setLabelIds] = useState<string[]>(task.labels?.map((label) => label.id) ?? []);
-  const [expectedUpdatedAt, setExpectedUpdatedAt] = useState(task.updated_at);
-  const [conflict, setConflict] = useState<BoardTask | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-
-  async function save(expectedAt = expectedUpdatedAt) {
-    if (!title.trim()) {
-      setError("A task needs a title.");
-      return;
-    }
-    setError(null);
-    setPending(true);
-    try {
-      const response = await fetch(`/api/v1/tasks/${task.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || null,
-          dueDate: dueDate || null,
-          priority,
-          assigneeId,
-          expectedUpdatedAt: expectedAt,
-        }),
-      });
-      const payload: unknown = await response.json();
-      if (response.status === 409 && isConflictPayload(payload)) {
-        setConflict(payload.error.details.current);
-        return;
-      }
-      if (!response.ok || !isBoardTask(payload)) {
-        setError("Your changes could not be saved. Please try again.");
-        return;
-      }
-      onSaved(payload.data);
-    } catch {
-      setError("You appear to be offline. Your changes are still here—try again when connected.");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function deleteTask() {
-    setError(null);
-    setPending(true);
-    try {
-      const response = await fetch(`/api/v1/tasks/${task.id}`, { method: "DELETE" });
-      if (!response.ok) {
-        setError("Task could not be deleted. Please try again.");
-        return;
-      }
-      onDeleted(task.id);
-    } catch {
-      setError("You appear to be offline. Reconnect and try again.");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function saveLabels(ids: string[]) {
-    setError(null);
-    setPending(true);
-    try {
-      const response = await fetch(`/api/v1/tasks/${task.id}/labels`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ labelIds: ids }),
-      });
-      if (!response.ok) {
-        setError("Labels could not be saved. Please try again.");
-        return;
-      }
-      setLabelIds(ids);
-      onLabelsSaved(projectLabels.filter((label) => ids.includes(label.id)));
-    } catch {
-      setError(
-        "You appear to be offline. Your label changes are still here—try again when connected.",
-      );
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-6"
-      role="presentation"
-      onMouseDown={onClose}
-    >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="task-editor-title"
-        className="bg-card max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-t-xl p-5 shadow-xl sm:rounded-xl sm:p-6"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between gap-4">
-          <h2 id="task-editor-title" className="text-lg font-semibold">
-            Edit task
-          </h2>
-          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-            Close
-          </Button>
-        </div>
-        <form
-          className="mt-5 space-y-5"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void save();
-          }}
-        >
-          <label className="block space-y-2 text-sm font-medium">
-            Title
-            <input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              readOnly={readOnly}
-              maxLength={200}
-              autoFocus={!readOnly}
-              className="bg-background focus-visible:ring-ring/40 w-full rounded-md border px-3 py-2 text-base font-normal outline-none focus-visible:ring-2"
-            />
-          </label>
-          <label className="block space-y-2 text-sm font-medium">
-            Description <span className="text-muted-foreground font-normal">(optional)</span>
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              readOnly={readOnly}
-              maxLength={20_000}
-              rows={6}
-              className="bg-background focus-visible:ring-ring/40 w-full resize-y rounded-md border px-3 py-2 text-base font-normal outline-none focus-visible:ring-2"
-            />
-          </label>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block space-y-2 text-sm font-medium">
-              Priority
-              <select
-                value={priority}
-                onChange={(event) => setPriority(event.target.value as BoardTask["priority"])}
-                disabled={readOnly}
-                className="bg-background focus-visible:ring-ring/40 w-full rounded-md border px-3 py-2 text-base font-normal outline-none focus-visible:ring-2"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </select>
-            </label>
-            <AssigneePicker
-              projectId={projectId}
-              value={assigneeId}
-              onChange={setAssigneeId}
-              disabled={readOnly || pending}
-            />
-            <label className="block space-y-2 text-sm font-medium">
-              Due date <span className="text-muted-foreground font-normal">(optional)</span>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(event) => setDueDate(event.target.value)}
-                readOnly={readOnly}
-                className="bg-background focus-visible:ring-ring/40 w-full rounded-md border px-3 py-2 text-base font-normal outline-none focus-visible:ring-2"
-              />
-            </label>
-          </div>
-          <LabelPicker
-            labels={projectLabels}
-            selectedIds={labelIds}
-            onChange={(ids) => void saveLabels(ids)}
-            readOnly={readOnly || pending}
-          />
-          <SubtaskList taskId={task.id} readOnly={readOnly} />
-          <CommentThread
-            key={task.id}
-            taskId={task.id}
-            projectId={projectId}
-            currentUserId={currentUserId}
-            currentUserRole={currentUserRole}
-            readOnly={readOnly}
-            peers={peers}
-            refreshVersion={commentRevision}
-          />
-          {error && (
-            <p role="alert" className="text-destructive text-sm">
-              {error}
-            </p>
-          )}
-          {conflict && (
-            <div
-              role="alert"
-              className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
-            >
-              <p className="font-medium">This task changed since you opened it.</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setTitle(conflict.title);
-                    setDescription(conflict.description ?? "");
-                    setDueDate(conflict.due_date ?? "");
-                    setPriority(conflict.priority);
-                    setAssigneeId(conflict.assignee_id ?? null);
-                    setExpectedUpdatedAt(conflict.updated_at);
-                    setConflict(null);
-                  }}
-                >
-                  Reload their version
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => {
-                    setExpectedUpdatedAt(conflict.updated_at);
-                    setConflict(null);
-                    void save(conflict.updated_at);
-                  }}
-                >
-                  Overwrite with mine
-                </Button>
-              </div>
-            </div>
-          )}
-          <div className="flex justify-end gap-3 border-t pt-4">
-            {!readOnly &&
-              (confirmingDelete ? (
-                <div className="mr-auto flex flex-wrap items-center gap-2 text-sm">
-                  <span className="text-destructive font-medium">Delete this task?</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setConfirmingDelete(false)}
-                    disabled={pending}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => void deleteTask()}
-                    disabled={pending}
-                  >
-                    Delete task
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="text-destructive hover:text-destructive mr-auto"
-                  onClick={() => setConfirmingDelete(true)}
-                  disabled={pending}
-                >
-                  Delete
-                </Button>
-              ))}
-            <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
-              Cancel
-            </Button>
-            {!readOnly && (
-              <Button type="submit" disabled={pending}>
-                {pending ? "Saving" : "Save changes"}
-              </Button>
-            )}
-          </div>
-        </form>
-      </section>
-    </div>
-  );
-}
-
-type Subtask = {
-  id: string;
-  task_id: string;
-  title: string;
-  is_completed: boolean;
-  position: number;
-  created_at: string;
-  updated_at: string;
-};
-
-function SubtaskList({ taskId, readOnly }: { taskId: string; readOnly: boolean }) {
-  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
-  const [title, setTitle] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [pendingId, setPendingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void fetch(`/api/v1/tasks/${taskId}/subtasks`)
-      .then(async (response) => {
-        const payload: unknown = await response.json();
-        if (!response.ok || !isSubtaskList(payload)) throw new Error("Load rejected");
-        if (active) setSubtasks(payload.data);
-      })
-      .catch(() => active && setError("Subtasks could not be loaded."))
-      .finally(() => active && setLoading(false));
-    return () => {
-      active = false;
-    };
-  }, [taskId]);
-
-  async function addSubtask(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!title.trim()) return;
-    setError(null);
-    setPendingId("new");
-    try {
-      const response = await fetch(`/api/v1/tasks/${taskId}/subtasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim() }),
-      });
-      const payload: unknown = await response.json();
-      if (!response.ok || !isSubtask(payload)) throw new Error("Create rejected");
-      setSubtasks((current) => [...current, payload.data]);
-      setTitle("");
-    } catch {
-      setError("Subtask could not be added. Try again.");
-    } finally {
-      setPendingId(null);
-    }
-  }
-
-  async function updateSubtask(
-    subtask: Subtask,
-    change: { title?: string; isCompleted?: boolean },
-  ) {
-    setError(null);
-    setPendingId(subtask.id);
-    try {
-      const response = await fetch(`/api/v1/tasks/${taskId}/subtasks/${subtask.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(change),
-      });
-      const payload: unknown = await response.json();
-      if (!response.ok || !isSubtask(payload)) throw new Error("Update rejected");
-      setSubtasks((current) =>
-        current.map((item) => (item.id === subtask.id ? payload.data : item)),
-      );
-    } catch {
-      setError("Subtask could not be updated. Try again.");
-    } finally {
-      setPendingId(null);
-    }
-  }
-
-  async function removeSubtask(subtask: Subtask) {
-    setError(null);
-    setPendingId(subtask.id);
-    try {
-      const response = await fetch(`/api/v1/tasks/${taskId}/subtasks/${subtask.id}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error("Delete rejected");
-      setSubtasks((current) => current.filter((item) => item.id !== subtask.id));
-    } catch {
-      setError("Subtask could not be removed. Try again.");
-    } finally {
-      setPendingId(null);
-    }
-  }
-
-  const completed = subtasks.filter((subtask) => subtask.is_completed).length;
-  return (
-    <section className="space-y-3 border-t pt-5" aria-labelledby="subtasks-title">
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 id="subtasks-title" className="font-medium">
-          Subtasks
-        </h3>
-        {!loading && (
-          <p className="text-muted-foreground text-sm">
-            {completed}/{subtasks.length} complete
-          </p>
-        )}
-      </div>
-      {loading ? (
-        <div className="text-muted-foreground flex items-center gap-2 py-2 text-sm">
-          <LoaderCircle className="size-4 animate-spin" /> Loading subtasks
-        </div>
-      ) : (
-        <ul className="space-y-1.5" aria-live="polite">
-          {subtasks.map((subtask) => (
-            <li
-              key={subtask.id}
-              className="hover:bg-muted/60 flex items-center gap-2 rounded-md px-1 py-1.5"
-            >
-              <button
-                type="button"
-                disabled={readOnly || pendingId === subtask.id}
-                onClick={() => void updateSubtask(subtask, { isCompleted: !subtask.is_completed })}
-                aria-label={`${subtask.is_completed ? "Mark incomplete" : "Mark complete"}: ${subtask.title}`}
-                className={cn(
-                  "focus-visible:ring-ring grid size-5 shrink-0 place-items-center rounded border transition-colors focus-visible:ring-2 focus-visible:outline-none",
-                  subtask.is_completed && "border-primary bg-primary text-primary-foreground",
-                  readOnly && "cursor-default",
-                )}
-              >
-                {subtask.is_completed && <Check className="size-3.5" />}
-              </button>
-              <input
-                defaultValue={subtask.title}
-                readOnly={readOnly}
-                disabled={pendingId === subtask.id}
-                onBlur={(event) => {
-                  const nextTitle = event.target.value.trim();
-                  if (nextTitle && nextTitle !== subtask.title)
-                    void updateSubtask(subtask, { title: nextTitle });
-                  else event.target.value = subtask.title;
-                }}
-                className={cn(
-                  "focus-visible:ring-ring min-w-0 flex-1 bg-transparent text-sm outline-none focus-visible:ring-2",
-                  subtask.is_completed && "text-muted-foreground line-through",
-                  !readOnly && "hover:bg-background rounded px-1 py-0.5",
-                )}
-              />
-              {!readOnly && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Delete ${subtask.title}`}
-                  disabled={pendingId === subtask.id}
-                  onClick={() => void removeSubtask(subtask)}
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-      {!loading && subtasks.length === 0 && (
-        <p className="text-muted-foreground text-sm">Break this task into smaller steps.</p>
-      )}
-      {!readOnly && (
-        <form className="flex gap-2" onSubmit={(event) => void addSubtask(event)}>
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            maxLength={200}
-            placeholder="Add a subtask"
-            className="bg-background placeholder:text-muted-foreground focus-visible:ring-ring/40 h-9 min-w-0 flex-1 rounded-md border px-3 text-sm outline-none focus-visible:ring-2"
-          />
-          <Button type="submit" size="sm" disabled={!title.trim() || pendingId === "new"}>
-            {pendingId === "new" ? "Adding" : "Add"}
-          </Button>
-        </form>
-      )}
-      {error && (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
-      )}
-    </section>
-  );
-}
-
-function isSubtask(value: unknown): value is { data: Subtask } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "data" in value &&
-    typeof value.data === "object" &&
-    value.data !== null &&
-    "id" in value.data &&
-    typeof value.data.id === "string"
-  );
-}
-
-function isSubtaskList(value: unknown): value is { data: Subtask[] } {
-  return (
-    typeof value === "object" && value !== null && "data" in value && Array.isArray(value.data)
-  );
-}
-
 function isMovedTask(
   value: unknown,
 ): value is { data: Pick<BoardTask, "id" | "column_id" | "position" | "updated_at"> } {
@@ -1239,9 +740,9 @@ function isMovedTask(
 
 function priorityColor(priority: BoardTask["priority"]) {
   return {
-    low: "text-slate-500",
-    medium: "text-blue-600",
-    high: "text-amber-700",
+    low: "text-muted-foreground",
+    medium: "text-brand-primary",
+    high: "text-status-amber-fg",
     urgent: "text-destructive",
   }[priority];
 }

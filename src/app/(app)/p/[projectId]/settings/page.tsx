@@ -34,7 +34,9 @@ export default async function SettingsPage({ params }: { params: Promise<{ proje
       </Link>
       <div className="mt-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Project settings</h1>
+          <h1 className="text-headline-lg-mobile sm:text-headline-lg font-serif font-medium">
+            Project settings
+          </h1>
           <p className="text-muted-foreground mt-1 text-sm">Update the shared project details.</p>
         </div>
         <div className="flex gap-4">

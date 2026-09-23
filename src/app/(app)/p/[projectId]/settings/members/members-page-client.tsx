@@ -110,7 +110,10 @@ export function MembersPageClient({
     };
   }, [projectId, canManage]);
 
-  async function handleInvite(input: { email: string; role: "admin" | "member" | "viewer" }) {
+  async function handleInvite(input: {
+    email: string;
+    role: "admin" | "member" | "viewer";
+  }): Promise<{ acceptUrl: string }> {
     const response = await fetch(`/api/v1/projects/${projectId}/invitations`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -118,7 +121,9 @@ export function MembersPageClient({
     });
     if (!response.ok)
       throw new Error(await readError(response, "The invitation could not be sent."));
+    const body = (await response.json()) as { data: { acceptUrl: string } };
     await load();
+    return { acceptUrl: body.data.acceptUrl };
   }
 
   async function handleRevoke(invitationId: string) {

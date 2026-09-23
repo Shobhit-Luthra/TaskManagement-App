@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-import * as Dialog from "radix-ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 export function InviteDialog({
   open,
@@ -11,21 +11,32 @@ export function InviteDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onInvite: (input: { email: string; role: "admin" | "member" | "viewer" }) => Promise<void>;
+  onInvite: (input: {
+    email: string;
+    role: "admin" | "member" | "viewer";
+  }) => Promise<{ acceptUrl: string }>;
 }) {
   const [email, setEmail] = useState(""),
     [role, setRole] = useState<"admin" | "member" | "viewer">("member"),
     [error, setError] = useState<string | null>(null),
-    [pending, setPending] = useState(false);
+    [pending, setPending] = useState(false),
+    [inviteLink, setInviteLink] = useState<string | null>(null),
+    [copied, setCopied] = useState(false);
+
+  function reset() {
+    setEmail("");
+    setError(null);
+    setInviteLink(null);
+    setCopied(false);
+  }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setPending(true);
     try {
-      await onInvite({ email, role });
-      setEmail("");
-      onOpenChange(false);
+      const { acceptUrl } = await onInvite({ email, role });
+      setInviteLink(acceptUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "The invitation could not be sent.");
     } finally {
@@ -33,13 +44,47 @@ export function InviteDialog({
     }
   }
 
+  async function copyLink() {
+    if (!inviteLink) return;
+    await navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+  }
+
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/40" />
-        <Dialog.Content className="bg-card fixed top-1/2 left-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border p-5">
-          <Dialog.Title className="text-lg font-semibold">Invite someone</Dialog.Title>
-          <form onSubmit={(event) => void submit(event)} className="mt-4 space-y-4">
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (!next) reset();
+      }}
+    >
+      <DialogContent className="max-w-sm">
+        <DialogTitle>Invite someone</DialogTitle>
+        {inviteLink ? (
+          <div className="space-y-4">
+            <p className="text-muted-foreground text-sm">
+              Email delivery isn&apos;t set up yet, so share this link with {email} yourself — it
+              works the same as an emailed invite.
+            </p>
+            <div className="flex items-center gap-2">
+              <Input readOnly value={inviteLink} onFocus={(event) => event.target.select()} />
+              <Button type="button" onClick={() => void copyLink()}>
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                onOpenChange(false);
+                reset();
+              }}
+            >
+              Done
+            </Button>
+          </div>
+        ) : (
+          <form onSubmit={(event) => void submit(event)} className="space-y-4">
             <label className="block text-sm font-medium" htmlFor="invite-email">
               Email
               <Input
@@ -70,8 +115,8 @@ export function InviteDialog({
               {pending ? "Sending" : "Send invite"}
             </Button>
           </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

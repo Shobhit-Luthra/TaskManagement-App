@@ -32,7 +32,9 @@ export default async function TrashPage({ params }: { params: Promise<{ projectI
       >
         <ArrowLeft className="size-3.5" /> Board
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight">Trash</h1>
+      <h1 className="text-headline-lg-mobile sm:text-headline-lg mt-2 font-serif font-medium">
+        Trash
+      </h1>
       <p className="text-muted-foreground mt-1 text-sm">Deleted tasks are kept for 30 days.</p>
       <TrashList initialTasks={(deletedTasks ?? []) as DeletedTask[]} />
     </main>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, ArrowLeft, BarChart3, LayoutList, Settings, Trash2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ProjectBoard, type BoardColumn, type BoardTask } from "@/components/board/project-board";
 import { BoardHeaderInvite } from "@/components/members/board-header-invite";
@@ -39,7 +39,12 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
       .eq("project_id", projectId)
       .is("deleted_at", null)
       .order("position"),
-    supabase.from("memberships").select("role").eq("project_id", projectId).maybeSingle(),
+    supabase
+      .from("memberships")
+      .select("role")
+      .eq("project_id", projectId)
+      .eq("user_id", auth.user.id)
+      .maybeSingle(),
     supabase
       .from("memberships")
       .select("user_id, project_peers!inner(id, display_name)")
@@ -75,7 +80,7 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
           <ArrowLeft className="size-3.5" /> Projects
         </Link>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="min-w-0 text-2xl font-semibold tracking-tight break-words">
+          <h1 className="text-headline-lg-mobile sm:text-headline-lg min-w-0 font-serif font-medium break-words">
             {project.name}
           </h1>
           <div className="flex items-center gap-3">
@@ -84,40 +89,6 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
               members={members}
               canInvite={membership?.role === "owner" || membership?.role === "admin"}
             />
-            <Link
-              href={`/p/${projectId}/list`}
-              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm font-medium"
-            >
-              <LayoutList className="size-4" /> List
-            </Link>
-            {(membership?.role === "owner" || membership?.role === "admin") && (
-              <Link
-                href={`/p/${projectId}/settings`}
-                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm font-medium"
-              >
-                <Settings className="size-4" /> Settings
-              </Link>
-            )}
-            <Link
-              href={`/p/${projectId}/activity`}
-              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm font-medium"
-            >
-              <Activity className="size-4" /> Activity
-            </Link>
-            <Link
-              href={`/p/${projectId}/analytics`}
-              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm font-medium"
-            >
-              <BarChart3 className="size-4" /> Analytics
-            </Link>
-            {membership?.role !== "viewer" && (
-              <Link
-                href={`/p/${projectId}/trash`}
-                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm font-medium"
-              >
-                <Trash2 className="size-4" /> Trash
-              </Link>
-            )}
             {membership?.role === "viewer" && (
               <span className="bg-muted text-muted-foreground rounded-full px-2.5 py-1 text-xs font-medium">
                 View only

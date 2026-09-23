@@ -20,7 +20,9 @@ export default async function AccountPage() {
       <Link href="/projects" className="text-muted-foreground hover:text-foreground text-sm">
         ← Back to projects
       </Link>
-      <h1 className="mt-6 text-2xl font-semibold tracking-tight">Account</h1>
+      <h1 className="text-headline-lg-mobile sm:text-headline-lg mt-6 font-serif font-medium">
+        Account
+      </h1>
       <dl className="bg-card mt-8 grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-xl border p-5 text-sm">
         <dt className="text-muted-foreground">Name</dt>
         <dd>{profile?.display_name ?? "—"}</dd>

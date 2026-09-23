@@ -15,18 +15,22 @@ export function BoardHeaderInvite({
 }) {
   const [open, setOpen] = useState(false);
 
-  async function handleInvite(input: { email: string; role: "admin" | "member" | "viewer" }) {
+  async function handleInvite(input: {
+    email: string;
+    role: "admin" | "member" | "viewer";
+  }): Promise<{ acceptUrl: string }> {
     const response = await fetch(`/api/v1/projects/${projectId}/invitations`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });
-    if (!response.ok) {
-      const body = (await response.json().catch(() => null)) as {
-        error?: { message?: string };
-      } | null;
+    const body = (await response.json().catch(() => null)) as {
+      data?: { acceptUrl: string };
+      error?: { message?: string };
+    } | null;
+    if (!response.ok || !body?.data)
       throw new Error(body?.error?.message ?? "The invitation could not be sent.");
-    }
+    return { acceptUrl: body.data.acceptUrl };
   }
 
   return (

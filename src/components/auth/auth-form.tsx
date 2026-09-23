@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode, useActionState } from "react";
+import { type ReactNode, useActionState, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,20 +23,51 @@ export function AuthForm({
   next?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, { ok: false });
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   return (
     <form action={formAction} className="space-y-4">
       {next && <input type="hidden" name="next" value={next} />}
       {fields.map((field) => (
         <div key={field.name} className="space-y-2">
           <Label htmlFor={field.name}>{field.label}</Label>
-          <Input
-            id={field.name}
-            name={field.name}
-            type={field.type ?? "text"}
-            autoComplete={field.autoComplete}
-            required
-            aria-describedby={state.fieldErrors?.[field.name] ? `${field.name}-error` : undefined}
-          />
+          <div className="relative">
+            <Input
+              id={field.name}
+              name={field.name}
+              type={
+                field.type === "password" && visiblePasswords[field.name]
+                  ? "text"
+                  : (field.type ?? "text")
+              }
+              className={
+                field.type === "password" ? "bg-surface-low h-11 pr-12" : "bg-surface-low h-11"
+              }
+              autoComplete={field.autoComplete}
+              required
+              aria-invalid={Boolean(state.fieldErrors?.[field.name])}
+              aria-describedby={state.fieldErrors?.[field.name] ? `${field.name}-error` : undefined}
+            />
+            {field.type === "password" && (
+              <button
+                type="button"
+                aria-label={`${visiblePasswords[field.name] ? "Hide" : "Show"} ${field.label.toLowerCase()}`}
+                aria-pressed={Boolean(visiblePasswords[field.name])}
+                onClick={() =>
+                  setVisiblePasswords((current) => ({
+                    ...current,
+                    [field.name]: !current[field.name],
+                  }))
+                }
+                className="text-muted-foreground hover:text-foreground focus-visible:outline-ring absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-md focus-visible:outline-2"
+              >
+                {visiblePasswords[field.name] ? (
+                  <EyeOff className="size-4" />
+                ) : (
+                  <Eye className="size-4" />
+                )}
+              </button>
+            )}
+          </div>
           {state.fieldErrors?.[field.name] && (
             <p id={`${field.name}-error`} className="text-destructive text-sm">
               {state.fieldErrors[field.name]}
@@ -51,7 +83,7 @@ export function AuthForm({
           {state.message}
         </p>
       )}
-      <Button type="submit" className="w-full" disabled={pending}>
+      <Button type="submit" className="h-11 w-full" disabled={pending}>
         {pending ? "Please wait…" : submit}
       </Button>
       {footer && <p className="text-muted-foreground text-center text-sm">{footer}</p>}

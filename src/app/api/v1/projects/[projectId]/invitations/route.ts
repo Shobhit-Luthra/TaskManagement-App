@@ -71,16 +71,17 @@ export const POST = withApiHandler(
         .select("display_name")
         .eq("id", user.id)
         .single();
+      const acceptUrl = `${clientEnv.NEXT_PUBLIC_SITE_URL}/invite/${token}`;
       const sender = getEmailSender();
       const email = invitationEmail({
         projectName: project?.name ?? "a Kanbo project",
         inviterDisplayName: inviter?.display_name ?? "A teammate",
         role: row.role,
-        acceptUrl: `${clientEnv.NEXT_PUBLIC_SITE_URL}/invite/${token}`,
+        acceptUrl,
       });
       await sender.send({ to: body.email, ...email, category: "transactional" });
 
-      return { status: row.resent ? 200 : 201, body: { data: row } };
+      return { status: row.resent ? 200 : 201, body: { data: { ...row, acceptUrl } } };
     };
 
     const result = idempotencyKey

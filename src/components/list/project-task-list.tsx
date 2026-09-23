@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import type { BoardColumn, BoardTask } from "@/components/board/project-board";
 import type { PeerOption } from "@/components/board/mention-autocomplete";
 import type { LabelOption } from "@/components/labels/label-picker";
@@ -11,7 +10,11 @@ import { useFilterState } from "@/components/board/use-filter-state";
 import { applyFilters } from "@/lib/filters/apply";
 import { useProjectChannel } from "@/lib/realtime/use-project-channel";
 import { mergeColumnEvent, mergeTaskEvent } from "@/lib/realtime/board-sync";
-import { TaskTable, type InlineTaskPatch } from "./task-table";
+import { type InlineTaskPatch } from "./task-table";
+import { GroupedTaskList } from "./grouped-task-list";
+import { TaskDetailDrawer } from "@/components/board/task-detail-drawer";
+import { TaskComposer } from "@/components/board/project-board";
+import { Button } from "@/components/ui/button";
 
 export function ProjectTaskList({
   projectId,
@@ -22,6 +25,7 @@ export function ProjectTaskList({
   labels,
   projectTimezone,
   readOnly,
+  currentUserRole = "member",
 }: {
   projectId: string;
   currentUserId: string;
@@ -31,16 +35,20 @@ export function ProjectTaskList({
   labels: LabelOption[];
   projectTimezone: string;
   readOnly: boolean;
+  currentUserRole?: "owner" | "admin" | "member" | "viewer";
 }) {
   const [tasks, setTasks] = useState(initialTasks);
   const [columns, setColumns] = useState(initialColumns);
   const [filters, setFilter, clearFilters] = useFilterState();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const [editingTask, setEditingTask] = useState<BoardTask | null>(null);
+  const [commentRevision, setCommentRevision] = useState(0);
+  const [composerOpen, setComposerOpen] = useState(false);
   const pendingIds = useRef(new Set<string>());
   const syncStatus = useProjectChannel(projectId, currentUserId, {
     onTask: (event) => setTasks((current) => mergeTaskEvent(current, event, new Set()).tasks),
     onColumn: (event) => setColumns((current) => mergeColumnEvent(current, event)),
+    onComment: () => setCommentRevision((value) => value + 1),
     onMembershipRemoved: () => router.replace("/projects?removed=1"),
   });
   const visibleTasks = applyFilters(
@@ -115,12 +123,26 @@ export function ProjectTaskList({
 
   return (
     <div className="mt-6 space-y-4">
-      <Link
-        href={`/p/${projectId}/board?${searchParams.toString()}`}
-        className="text-sm underline underline-offset-4"
-      >
-        Board view with these filters
-      </Link>
+      {!readOnly && (
+        <div className="flex justify-end">
+          <Button onClick={() => setComposerOpen((value) => !value)} aria-expanded={composerOpen}>
+            {composerOpen ? "Close composer" : "Add task"}
+          </Button>
+        </div>
+      )}
+      {composerOpen && !readOnly && syncStatus !== "reconnecting" && columns[0] && (
+        <div className="bg-card rounded-lg border">
+          <p className="px-3 pt-3 text-sm">New task in {columns[0].name}</p>
+          <TaskComposer
+            projectId={projectId}
+            columnId={columns[0].id}
+            onCreated={(task) => {
+              setTasks((current) => [...current, task]);
+              setComposerOpen(false);
+            }}
+          />
+        </div>
+      )}
       {syncStatus === "reconnecting" && (
         <p role="status" className="text-muted-foreground text-sm">
           Reconnecting to live updates. Editing is temporarily unavailable.
@@ -133,18 +155,46 @@ export function ProjectTaskList({
         peers={peers}
         labels={labels}
       />
-      <TaskTable
+      <GroupedTaskList
         tasks={visibleTasks}
         columns={columns}
         peers={peers}
         readOnly={readOnly || syncStatus === "reconnecting"}
         onInlineUpdate={update}
-        onOpenTask={(task) => {
-          const params = new URLSearchParams(searchParams.toString());
-          params.set("task", task.id);
-          router.push(`/p/${projectId}/board?${params}`);
-        }}
+        onOpenTask={setEditingTask}
       />
+      {editingTask && (
+        <TaskDetailDrawer
+          key={editingTask.id}
+          task={editingTask}
+          projectId={projectId}
+          currentUserId={currentUserId}
+          currentUserRole={readOnly ? "viewer" : currentUserRole}
+          peers={peers}
+          projectLabels={labels}
+          commentRevision={commentRevision}
+          readOnly={readOnly || syncStatus === "reconnecting"}
+          onClose={() => setEditingTask(null)}
+          onSaved={(saved) => {
+            setTasks((current) =>
+              current.map((task) => (task.id === saved.id ? { ...task, ...saved } : task)),
+            );
+            setEditingTask(null);
+          }}
+          onDeleted={(id) => {
+            setTasks((current) => current.filter((task) => task.id !== id));
+            setEditingTask(null);
+          }}
+          onLabelsSaved={(savedLabels) => {
+            setTasks((current) =>
+              current.map((task) =>
+                task.id === editingTask.id ? { ...task, labels: savedLabels } : task,
+              ),
+            );
+            setEditingTask((current) => (current ? { ...current, labels: savedLabels } : current));
+          }}
+        />
+      )}
     </div>
   );
 }

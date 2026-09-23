@@ -43,7 +43,9 @@ export default async function ActivityPage({ params }: { params: Promise<{ proje
           <Activity className="size-5" aria-hidden="true" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Activity</h1>
+          <h1 className="text-headline-lg-mobile sm:text-headline-lg font-serif font-medium">
+            Activity
+          </h1>
           <p className="text-muted-foreground mt-1 text-sm">Recent work in {project.name}</p>
         </div>
       </div>

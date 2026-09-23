@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ProjectTaskList } from "@/components/list/project-task-list";
@@ -61,13 +60,9 @@ export default async function ListPage({ params }: { params: Promise<{ projectId
     tasksResult.error || columnsResult.error || peersResult.error || labelsResult.error;
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <Link
-        href={`/p/${projectId}/board`}
-        className="text-muted-foreground text-sm hover:underline"
-      >
-        Back to board
-      </Link>
-      <h1 className="mt-6 text-2xl font-semibold tracking-tight">Task list</h1>
+      <h1 className="text-headline-lg-mobile sm:text-headline-lg mt-6 font-serif font-medium">
+        Task list
+      </h1>
       <p className="text-muted-foreground mt-1 text-sm">{project.name}</p>
       {failed ? (
         <p role="alert" className="text-destructive mt-8 text-sm">
@@ -82,6 +77,7 @@ export default async function ListPage({ params }: { params: Promise<{ projectId
           peers={peers}
           labels={labelsResult.data ?? []}
           projectTimezone={project.timezone}
+          currentUserRole={membership.role}
           readOnly={membership.role === "viewer"}
         />
       )}

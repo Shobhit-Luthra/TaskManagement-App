@@ -55,13 +55,11 @@ describe("list inline updates", () => {
   it("shows the latest server value after a conflict", async () => {
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValue({
-          ok: false,
-          status: 409,
-          json: async () => ({ error: { details: { current: { ...task, priority: "urgent" } } } }),
-        }),
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({ error: { details: { current: { ...task, priority: "urgent" } } } }),
+      }),
     );
     render(<ProjectTaskList {...props} />);
     await userEvent.selectOptions(
@@ -77,3 +75,6 @@ describe("list inline updates", () => {
     expect(screen.getByText("Ada")).toBeInTheDocument();
   });
 });
+
+vi.mock("@/components/board/assignee-picker", () => ({ AssigneePicker: () => null }));
+vi.mock("@/components/board/task-activity", () => ({ TaskActivity: () => null }));

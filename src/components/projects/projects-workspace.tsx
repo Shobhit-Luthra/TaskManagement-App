@@ -2,9 +2,17 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { FolderKanban, RotateCcw } from "lucide-react";
+import { FolderKanban, Plus, RotateCcw } from "lucide-react";
 import { CreateProjectForm } from "@/components/projects/create-project-form";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 
 type Project = {
@@ -98,11 +106,32 @@ export function ProjectsWorkspace() {
   }
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
-      <div className="max-w-2xl">
-        <h1 className="text-3xl font-semibold tracking-tight">Your projects</h1>
-        <p className="text-muted-foreground mt-2">
-          Create a shared workspace, then move work from idea to done.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="max-w-2xl">
+          <h1 className="text-headline-lg font-serif font-medium">Your projects</h1>
+          <p className="text-muted-foreground mt-2">
+            Create a shared workspace, then move work from idea to done.
+          </p>
+        </div>
+        {status === "ready" && projects.length > 0 && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button type="button">
+                <Plus /> New project
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create a project</DialogTitle>
+                <DialogDescription>
+                  Start with a name. Kanbo creates your first workflow so your team can add work
+                  straight away.
+                </DialogDescription>
+              </DialogHeader>
+              <CreateProjectForm />
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
       {status === "loading" ? (
         <p className="text-muted-foreground mt-8 text-sm">Loading projects…</p>
@@ -138,7 +167,7 @@ export function ProjectsWorkspace() {
                 className="focus-visible:ring-ring block rounded-md focus-visible:ring-2 focus-visible:outline-none"
               >
                 <FolderKanban className="text-muted-foreground size-5" aria-hidden="true" />
-                <h2 className="mt-6 font-semibold">{project.name}</h2>
+                <h2 className="text-headline-md mt-6 font-serif font-medium">{project.name}</h2>
                 <p className="text-muted-foreground mt-1 line-clamp-2 min-h-10 text-sm">
                   {project.description || "No description yet."}
                 </p>

@@ -75,12 +75,19 @@ export function TaskTable({
           {error}
         </p>
       )}
-      <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full min-w-[48rem] text-left text-sm">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[56rem] table-fixed text-left text-sm">
           <caption className="sr-only">
             Tasks. Use column headings to change the sort order.
           </caption>
-          <thead className="bg-muted/50 border-b">
+          <colgroup>
+            <col className="w-[30%]" />
+            <col className="w-[16%]" />
+            <col className="w-[20%]" />
+            <col className="w-[14%]" />
+            <col className="w-[20%]" />
+          </colgroup>
+          <thead className="bg-surface-low border-b">
             <tr>
               {(
                 [
@@ -114,7 +121,11 @@ export function TaskTable({
           </thead>
           <tbody className="divide-y">
             {sorted.map((task) => (
-              <tr key={task.id} aria-busy={pending === task.id}>
+              <tr
+                key={task.id}
+                aria-busy={pending === task.id}
+                className="bg-surface-lowest hover:bg-surface-low/60"
+              >
                 <td className="max-w-sm px-4 py-3">
                   <button
                     type="button"
@@ -129,7 +140,11 @@ export function TaskTable({
                     ))}
                   </div>
                 </td>
-                <td className="px-4 py-3">{columnName(task)}</td>
+                <td className="px-4 py-3">
+                  <span className="bg-secondary text-secondary-foreground rounded-full px-2.5 py-1 text-xs font-medium">
+                    {columnName(task)}
+                  </span>
+                </td>
                 <td className="px-4 py-3">
                   {readOnly ? (
                     assigneeName(task)

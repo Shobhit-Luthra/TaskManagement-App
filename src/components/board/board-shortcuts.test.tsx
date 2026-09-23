@@ -41,3 +41,5 @@ describe("board shortcut integration", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });
+
+vi.mock("./task-activity", () => ({ TaskActivity: () => null }));

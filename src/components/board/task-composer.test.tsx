@@ -47,3 +47,5 @@ describe("TaskComposer network retry", () => {
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 });
+
+vi.mock("./task-activity", () => ({ TaskActivity: () => null }));

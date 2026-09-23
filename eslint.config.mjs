@@ -11,6 +11,8 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "coverage/**",
+    "stitch-screens/**",
     "next-env.d.ts",
   ]),
   {
@@ -25,7 +27,8 @@ const eslintConfig = defineConfig([
         },
         {
           selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
-          message: "dangerouslySetInnerHTML is banned; render untrusted content through the comment markdown sanitiser.",
+          message:
+            "dangerouslySetInnerHTML is banned; render untrusted content through the comment markdown sanitiser.",
         },
       ],
     },
