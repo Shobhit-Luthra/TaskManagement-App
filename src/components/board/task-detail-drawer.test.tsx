@@ -94,3 +94,36 @@ it("reports subtask counts after adding a subtask", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Add" }));
   await waitFor(() => expect(onSubtaskCountsChange).toHaveBeenCalledWith(0, 1));
 });
+
+it("does not drop an earlier toggle when two subtask updates overlap", async () => {
+  const onSubtaskCountsChange = vi.fn();
+  const subtaskA = { id: "s1", task_id: "t1", title: "A", is_completed: false, position: 1 };
+  const subtaskB = { id: "s2", task_id: "t1", title: "B", is_completed: false, position: 2 };
+  let resolveFirstPatch!: (value: { ok: boolean; json: () => Promise<unknown> }) => void;
+  const firstPatch = new Promise<{ ok: boolean; json: () => Promise<unknown> }>((resolve) => {
+    resolveFirstPatch = resolve;
+  });
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [subtaskA, subtaskB] }) })
+    .mockImplementationOnce(() => firstPatch)
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: { ...subtaskB, is_completed: true } }),
+    });
+  vi.stubGlobal("fetch", fetchMock);
+  render(<TaskDetailDrawer {...props} onSubtaskCountsChange={onSubtaskCountsChange} />);
+  await userEvent.click(await screen.findByRole("button", { name: "Mark complete: A" }));
+  await userEvent.click(screen.getByRole("button", { name: "Mark complete: B" }));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Mark incomplete: B" })).toBeInTheDocument(),
+  );
+  resolveFirstPatch({
+    ok: true,
+    json: async () => ({ data: { ...subtaskA, is_completed: true } }),
+  });
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Mark incomplete: A" })).toBeInTheDocument(),
+  );
+  await waitFor(() => expect(onSubtaskCountsChange).toHaveBeenLastCalledWith(2, 2));
+});

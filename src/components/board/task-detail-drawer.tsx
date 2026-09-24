@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, LoaderCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -406,6 +406,7 @@ function SubtaskList({
   const [loading, setLoading] = useState(true);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const latestRef = useRef<Subtask[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -413,7 +414,10 @@ function SubtaskList({
       .then(async (response) => {
         const payload: unknown = await response.json();
         if (!response.ok || !isSubtaskList(payload)) throw new Error("Load rejected");
-        if (active) setSubtasks(payload.data);
+        if (active) {
+          latestRef.current = payload.data;
+          setSubtasks(payload.data);
+        }
       })
       .catch(() => active && setError("Subtasks could not be loaded."))
       .finally(() => active && setLoading(false));
@@ -422,7 +426,9 @@ function SubtaskList({
     };
   }, [taskId]);
 
-  function commit(next: Subtask[]) {
+  function commit(update: (current: Subtask[]) => Subtask[]) {
+    const next = update(latestRef.current);
+    latestRef.current = next;
     setSubtasks(next);
     onCountsChange?.(next.filter((subtask) => subtask.is_completed).length, next.length);
   }
@@ -440,7 +446,7 @@ function SubtaskList({
       });
       const payload: unknown = await response.json();
       if (!response.ok || !isSubtask(payload)) throw new Error("Create rejected");
-      commit([...subtasks, payload.data]);
+      commit((current) => [...current, payload.data]);
       setTitle("");
     } catch {
       setError("Subtask could not be added. Try again.");
@@ -463,7 +469,7 @@ function SubtaskList({
       });
       const payload: unknown = await response.json();
       if (!response.ok || !isSubtask(payload)) throw new Error("Update rejected");
-      commit(subtasks.map((item) => (item.id === subtask.id ? payload.data : item)));
+      commit((current) => current.map((item) => (item.id === subtask.id ? payload.data : item)));
     } catch {
       setError("Subtask could not be updated. Try again.");
     } finally {
@@ -479,7 +485,7 @@ function SubtaskList({
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Delete rejected");
-      commit(subtasks.filter((item) => item.id !== subtask.id));
+      commit((current) => current.filter((item) => item.id !== subtask.id));
     } catch {
       setError("Subtask could not be removed. Try again.");
     } finally {
