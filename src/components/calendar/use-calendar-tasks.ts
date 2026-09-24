@@ -24,7 +24,11 @@ export type CalendarTask = {
 export type CalendarSource = { kind: "project"; projectId: string } | { kind: "me" };
 
 type Versioned = Pick<CalendarTask, "due_date" | "updated_at">;
-type SavePayload = { data?: Versioned; error?: { details?: { current?: Versioned } } };
+type Conflicting = Pick<
+  CalendarTask,
+  "title" | "description" | "priority" | "assignee_id" | "due_date" | "updated_at"
+>;
+type SavePayload = { data?: Versioned; error?: { details?: { current?: Conflicting } } };
 
 export function calendarUrl(
   source: CalendarSource,
@@ -102,7 +106,12 @@ export function useCalendarTasks(source: CalendarSource, range: { from: string; 
   // task is in neither list.
   function place(
     taskId: string,
-    patch: Partial<Pick<CalendarTask, "due_date" | "updated_at">>,
+    patch: Partial<
+      Pick<
+        CalendarTask,
+        "title" | "description" | "priority" | "assignee_id" | "due_date" | "updated_at"
+      >
+    >,
     fallback: CalendarTask,
   ) {
     const existing =
@@ -141,7 +150,18 @@ export function useCalendarTasks(source: CalendarSource, range: { from: string; 
       const payload = (await response.json()) as SavePayload;
       const latest = payload.error?.details?.current;
       if (response.status === 409 && latest) {
-        place(taskId, { due_date: latest.due_date, updated_at: latest.updated_at }, task);
+        place(
+          taskId,
+          {
+            title: latest.title,
+            description: latest.description,
+            priority: latest.priority,
+            assignee_id: latest.assignee_id,
+            due_date: latest.due_date,
+            updated_at: latest.updated_at,
+          },
+          task,
+        );
         setMessage("This task changed elsewhere. Its latest date is shown; try again.");
         return;
       }

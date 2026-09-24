@@ -104,7 +104,13 @@ describe("useCalendarTasks", () => {
         json: async () => ({
           error: {
             details: {
-              current: { ...row, due_date: "2026-09-25", updated_at: "2026-09-03T00:00:00Z" },
+              current: {
+                ...row,
+                title: "Renamed",
+                assignee_id: "u2",
+                due_date: "2026-09-25",
+                updated_at: "2026-09-03T00:00:00Z",
+              },
             },
           },
         }),
@@ -114,10 +120,30 @@ describe("useCalendarTasks", () => {
       await result.current.reschedule("t1", "2026-09-30");
     });
     expect(result.current.tasks[0]).toMatchObject({
+      title: "Renamed",
+      assignee_id: "u2",
       due_date: "2026-09-25",
       updated_at: "2026-09-03T00:00:00Z",
     });
     expect(result.current.message).toMatch(/changed elsewhere/);
+
+    const fetchMock2 = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: { ...row, due_date: "2026-09-26", updated_at: "2026-09-04T00:00:00Z" },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock2);
+    await act(async () => {
+      await result.current.reschedule("t1", "2026-09-26");
+    });
+    const [, init] = fetchMock2.mock.calls[0]!;
+    expect(JSON.parse(init.body)).toMatchObject({
+      title: "Renamed",
+      assigneeId: "u2",
+      expectedUpdatedAt: "2026-09-03T00:00:00Z",
+    });
   });
 
   it("returns an undated task to the tray when scheduling fails", async () => {
