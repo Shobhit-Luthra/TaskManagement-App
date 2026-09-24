@@ -193,6 +193,15 @@ export function ProjectTaskList({
             );
             setEditingTask((current) => (current ? { ...current, labels: savedLabels } : current));
           }}
+          onSubtaskCountsChange={(done, total) =>
+            setTasks((current) =>
+              current.map((task) =>
+                task.id === editingTask.id
+                  ? { ...task, subtask_done: done, subtask_total: total }
+                  : task,
+              ),
+            )
+          }
         />
       )}
     </div>

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { BoardColumn, BoardTask } from "@/components/board/project-board";
 import type { PeerOption } from "@/components/board/mention-autocomplete";
 import { LabelChip } from "@/components/labels/label-chip";
+import { SubtaskProgress } from "@/components/tasks/subtask-progress";
 
 export type InlineTaskPatch = {
   assigneeId?: string | null;
@@ -135,6 +136,10 @@ export function TaskTable({
                     {task.title}
                   </button>
                   <div className="mt-1 flex flex-wrap gap-1">
+                    <SubtaskProgress
+                      done={task.subtask_done ?? 0}
+                      total={task.subtask_total ?? 0}
+                    />
                     {task.labels?.map((label) => (
                       <LabelChip key={label.id} name={label.name} color={label.color} />
                     ))}

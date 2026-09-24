@@ -74,3 +74,23 @@ it("supports Escape and prevents viewer mutations", async () => {
   await userEvent.keyboard("{Escape}");
   expect(props.onClose).toHaveBeenCalled();
 });
+
+it("reports subtask counts after adding a subtask", async () => {
+  const onSubtaskCountsChange = vi.fn();
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: { id: "s1", task_id: "t1", title: "Draft", is_completed: false, position: 1 },
+        }),
+      }),
+  );
+  render(<TaskDetailDrawer {...props} onSubtaskCountsChange={onSubtaskCountsChange} />);
+  await userEvent.type(await screen.findByLabelText("New subtask title"), "Draft");
+  await userEvent.click(screen.getByRole("button", { name: "Add" }));
+  await waitFor(() => expect(onSubtaskCountsChange).toHaveBeenCalledWith(0, 1));
+});

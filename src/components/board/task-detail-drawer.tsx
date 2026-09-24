@@ -60,6 +60,7 @@ export function TaskDetailDrawer({
   onClose,
   onSaved,
   onDeleted,
+  onSubtaskCountsChange,
 }: {
   projectId: string;
   currentUserId: string;
@@ -73,6 +74,7 @@ export function TaskDetailDrawer({
   onClose: () => void;
   onSaved: (task: BoardTask) => void;
   onDeleted: (taskId: string) => void;
+  onSubtaskCountsChange?: (done: number, total: number) => void;
 }) {
   const [returnFocus] = useState(() =>
     typeof document === "undefined" ? null : document.activeElement,
@@ -303,7 +305,11 @@ export function TaskDetailDrawer({
           )}
         </form>
         <div className="space-y-6 border-t p-6">
-          <SubtaskList taskId={task.id} readOnly={readOnly} />
+          <SubtaskList
+            taskId={task.id}
+            readOnly={readOnly}
+            onCountsChange={onSubtaskCountsChange}
+          />
           <Tabs defaultValue="comments">
             <TabsList className="w-full">
               <TabsTrigger value="comments">Comments</TabsTrigger>
@@ -386,7 +392,15 @@ type Subtask = {
   updated_at: string;
 };
 
-function SubtaskList({ taskId, readOnly }: { taskId: string; readOnly: boolean }) {
+function SubtaskList({
+  taskId,
+  readOnly,
+  onCountsChange,
+}: {
+  taskId: string;
+  readOnly: boolean;
+  onCountsChange?: (done: number, total: number) => void;
+}) {
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(true);
@@ -408,6 +422,11 @@ function SubtaskList({ taskId, readOnly }: { taskId: string; readOnly: boolean }
     };
   }, [taskId]);
 
+  function commit(next: Subtask[]) {
+    setSubtasks(next);
+    onCountsChange?.(next.filter((subtask) => subtask.is_completed).length, next.length);
+  }
+
   async function addSubtask(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!title.trim()) return;
@@ -421,7 +440,7 @@ function SubtaskList({ taskId, readOnly }: { taskId: string; readOnly: boolean }
       });
       const payload: unknown = await response.json();
       if (!response.ok || !isSubtask(payload)) throw new Error("Create rejected");
-      setSubtasks((current) => [...current, payload.data]);
+      commit([...subtasks, payload.data]);
       setTitle("");
     } catch {
       setError("Subtask could not be added. Try again.");
@@ -444,9 +463,7 @@ function SubtaskList({ taskId, readOnly }: { taskId: string; readOnly: boolean }
       });
       const payload: unknown = await response.json();
       if (!response.ok || !isSubtask(payload)) throw new Error("Update rejected");
-      setSubtasks((current) =>
-        current.map((item) => (item.id === subtask.id ? payload.data : item)),
-      );
+      commit(subtasks.map((item) => (item.id === subtask.id ? payload.data : item)));
     } catch {
       setError("Subtask could not be updated. Try again.");
     } finally {
@@ -462,7 +479,7 @@ function SubtaskList({ taskId, readOnly }: { taskId: string; readOnly: boolean }
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Delete rejected");
-      setSubtasks((current) => current.filter((item) => item.id !== subtask.id));
+      commit(subtasks.filter((item) => item.id !== subtask.id));
     } catch {
       setError("Subtask could not be removed. Try again.");
     } finally {

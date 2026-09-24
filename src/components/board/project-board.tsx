@@ -29,6 +29,7 @@ import { TaskDetailDrawer, isBoardTask } from "./task-detail-drawer";
 import type { PeerOption } from "./mention-autocomplete";
 import { LabelChip } from "@/components/labels/label-chip";
 import { type LabelOption } from "@/components/labels/label-picker";
+import { SubtaskProgress } from "@/components/tasks/subtask-progress";
 import { applyFilters } from "@/lib/filters/apply";
 import { useFilterState } from "./use-filter-state";
 import { FilterBar } from "./filter-bar";
@@ -55,6 +56,8 @@ export type BoardTask = {
   updated_at: string;
   assignee_id?: string | null;
   labels?: LabelOption[];
+  subtask_done?: number;
+  subtask_total?: number;
 };
 
 export function ProjectBoard({
@@ -456,6 +459,15 @@ export function ProjectBoard({
           onClose={closeTask}
           onSaved={updateTask}
           onDeleted={deleteTask}
+          onSubtaskCountsChange={(done, total) =>
+            setTasks((current) =>
+              current.map((candidate) =>
+                candidate.id === editingTask.id
+                  ? { ...candidate, subtask_done: done, subtask_total: total }
+                  : candidate,
+              ),
+            )
+          }
         />
       )}
     </section>
@@ -666,6 +678,7 @@ function TaskCard({
           <Flag className="size-3" aria-hidden="true" />
           {task.priority}
         </span>
+        <SubtaskProgress done={task.subtask_done ?? 0} total={task.subtask_total ?? 0} />
         {due && (
           <span
             className={cn(

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ProjectBoard, type BoardColumn, type BoardTask } from "@/components/board/project-board";
 import { BoardHeaderInvite } from "@/components/members/board-header-invite";
 import { createClient } from "@/lib/supabase/server";
+import { subtaskCounts } from "@/lib/tasks/subtask-counts";
 
 export default async function BoardPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
@@ -34,7 +35,7 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
     supabase
       .from("tasks")
       .select(
-        "id, column_id, title, description, due_date, priority, position, assignee_id, created_at, updated_at, task_labels(labels(id, name, color))",
+        "id, column_id, title, description, due_date, priority, position, assignee_id, created_at, updated_at, task_labels(labels(id, name, color)), subtasks(is_completed)",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null)
@@ -59,8 +60,9 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
     );
   }
   const columns = (columnData ?? []) as BoardColumn[];
-  const tasks = (taskData ?? []).map((task) => ({
+  const tasks = (taskData ?? []).map(({ subtasks, ...task }) => ({
     ...task,
+    ...subtaskCounts(subtasks),
     labels: (task.task_labels ?? []).flatMap((taskLabel) => {
       const label = Array.isArray(taskLabel.labels) ? taskLabel.labels[0] : taskLabel.labels;
       return label ? [{ id: label.id, name: label.name, color: label.color }] : [];

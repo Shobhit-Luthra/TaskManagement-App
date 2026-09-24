@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ProjectTaskList } from "@/components/list/project-task-list";
 import type { BoardTask } from "@/components/board/project-board";
+import { subtaskCounts } from "@/lib/tasks/subtask-counts";
 
 export default async function ListPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
@@ -25,7 +26,7 @@ export default async function ListPage({ params }: { params: Promise<{ projectId
       supabase
         .from("tasks")
         .select(
-          "id, title, description, column_id, due_date, priority, position, assignee_id, created_at, updated_at, task_labels(labels(id, name, color))",
+          "id, title, description, column_id, due_date, priority, position, assignee_id, created_at, updated_at, task_labels(labels(id, name, color)), subtasks(is_completed)",
         )
         .eq("project_id", projectId)
         .is("deleted_at", null)
@@ -45,8 +46,9 @@ export default async function ListPage({ params }: { params: Promise<{ projectId
   const project = projectResult.data,
     membership = membershipResult.data;
   if (!project || !membership) notFound();
-  const tasks = (tasksResult.data ?? []).map((task) => ({
+  const tasks = (tasksResult.data ?? []).map(({ subtasks, ...task }) => ({
     ...task,
+    ...subtaskCounts(subtasks),
     labels: (task.task_labels ?? []).flatMap((relation) => {
       const label = Array.isArray(relation.labels) ? relation.labels[0] : relation.labels;
       return label ? [label] : [];
