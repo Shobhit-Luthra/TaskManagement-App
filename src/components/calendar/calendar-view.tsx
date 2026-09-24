@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -14,7 +22,7 @@ import {
 } from "@/lib/calendar/grid";
 import { todayInTimeZone } from "@/lib/filters/timezone";
 import { useProjectChannel } from "@/lib/realtime/use-project-channel";
-import { CalendarChip, CalendarGrid } from "./calendar-grid";
+import { CalendarChip, CalendarChipOverlay, CalendarGrid } from "./calendar-grid";
 import { useCalendarTasks, type CalendarSource } from "./use-calendar-tasks";
 
 export function CalendarView({
@@ -41,10 +49,24 @@ export function CalendarView({
   const calendar = useCalendarTasks(source, { from: days[0]!, to: days[days.length - 1]! });
   const tasksByDay = useMemo(() => groupByDueDate(calendar.tasks), [calendar.tasks]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const activeTask = useMemo(
+    () => [...calendar.tasks, ...calendar.undated].find((task) => task.id === activeTaskId) ?? null,
+    [activeTaskId, calendar.tasks, calendar.undated],
+  );
+
+  function onDragStart(event: DragStartEvent) {
+    setActiveTaskId(String(event.active.id));
+  }
 
   function onDragEnd(event: DragEndEvent) {
+    setActiveTaskId(null);
     const day: unknown = event.over?.data.current?.day;
     if (typeof day === "string") void calendar.reschedule(String(event.active.id), day);
+  }
+
+  function onDragCancel() {
+    setActiveTaskId(null);
   }
 
   const heading =
@@ -111,7 +133,13 @@ export function CalendarView({
           Loading calendar…
         </p>
       )}
-      <DndContext id="calendar" sensors={sensors} onDragEnd={onDragEnd}>
+      <DndContext
+        id="calendar"
+        sensors={sensors}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragCancel={onDragCancel}
+      >
         <CalendarGrid
           view={view}
           days={days}
@@ -135,6 +163,11 @@ export function CalendarView({
             ))}
           </ul>
         </details>
+        <DragOverlay>
+          {activeTask && (
+            <CalendarChipOverlay task={activeTask} showProject={source.kind === "me"} />
+          )}
+        </DragOverlay>
       </DndContext>
       {source.kind === "project" && (
         <ProjectRealtime

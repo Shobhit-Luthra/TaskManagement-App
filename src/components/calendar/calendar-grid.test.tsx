@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 import { visibleDays } from "@/lib/calendar/grid";
-import { CalendarGrid } from "./calendar-grid";
+import { CalendarChipOverlay, CalendarGrid } from "./calendar-grid";
 import type { CalendarTask } from "./use-calendar-tasks";
 
 const base: CalendarTask = {
@@ -66,4 +66,10 @@ it("links chips to the task drawer on the board", () => {
     "/p/p1/board?task=t0",
   );
   expect(screen.getAllByText("Launch").length).toBeGreaterThan(0);
+});
+
+it("renders the drag overlay chip with no link, so releasing over it cannot navigate away", () => {
+  render(<CalendarChipOverlay task={base} showProject={false} />);
+  expect(screen.getByText("Task 0")).toBeInTheDocument();
+  expect(screen.queryByRole("link")).not.toBeInTheDocument();
 });

@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
 import { CheckCircle2 } from "lucide-react";
 import { MAX_CHIPS_PER_DAY, type CalendarView } from "@/lib/calendar/grid";
 import { cn } from "@/lib/utils";
 import type { CalendarTask } from "./use-calendar-tasks";
+
+const CHIP_CONTAINER_CLASSNAME = "bg-card rounded-md border px-1.5 py-1 text-xs";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -128,40 +129,86 @@ function CalendarDay({
   );
 }
 
-export function CalendarChip({ task, showProject }: { task: CalendarTask; showProject: boolean }) {
-  const { listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: task.id,
-    data: { taskId: task.id },
-    disabled: !task.can_edit,
-  });
+function CalendarChipBody({
+  task,
+  showProject,
+  href,
+}: {
+  task: CalendarTask;
+  showProject: boolean;
+  href?: string;
+}) {
   const details = [
     showProject ? task.project_name : null,
     task.subtask_total > 0 ? `${task.subtask_done}/${task.subtask_total} subtasks` : null,
   ].filter(Boolean);
+  const titleClassName = cn(
+    "focus-visible:ring-ring block truncate rounded font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none",
+    task.is_done && "text-muted-foreground line-through",
+  );
+  const titleContent = (
+    <>
+      {task.is_done && <CheckCircle2 aria-label="Completed" className="mr-1 inline size-3" />}
+      {task.title}
+    </>
+  );
+  return (
+    <>
+      {href ? (
+        <Link href={href} className={titleClassName}>
+          {titleContent}
+        </Link>
+      ) : (
+        <div className={titleClassName}>{titleContent}</div>
+      )}
+      {details.length > 0 && (
+        <p className="text-muted-foreground truncate">{details.join(" · ")}</p>
+      )}
+    </>
+  );
+}
+
+export function CalendarChip({ task, showProject }: { task: CalendarTask; showProject: boolean }) {
+  const { listeners, setNodeRef, isDragging } = useDraggable({
+    id: task.id,
+    data: { taskId: task.id },
+    disabled: !task.can_edit,
+  });
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform) }}
       {...(task.can_edit ? listeners : {})}
       className={cn(
-        "bg-card rounded-md border px-1.5 py-1 text-xs",
+        CHIP_CONTAINER_CLASSNAME,
         task.can_edit && "cursor-grab active:cursor-grabbing",
         isDragging && "opacity-50",
       )}
     >
-      <Link
+      <CalendarChipBody
+        task={task}
+        showProject={showProject}
         href={`/p/${task.project_id}/board?task=${task.id}`}
-        className={cn(
-          "focus-visible:ring-ring block truncate rounded font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none",
-          task.is_done && "text-muted-foreground line-through",
-        )}
-      >
-        {task.is_done && <CheckCircle2 aria-label="Completed" className="mr-1 inline size-3" />}
-        {task.title}
-      </Link>
-      {details.length > 0 && (
-        <p className="text-muted-foreground truncate">{details.join(" · ")}</p>
-      )}
+      />
+    </div>
+  );
+}
+
+// Presentational-only chip rendered inside <DragOverlay>. It follows the
+// pointer during a drag, so it must never contain a link: dnd-kit's pointer
+// sensor suppresses the *next* click on the source element but does not
+// preventDefault() a native anchor navigation, so if the source chip's own
+// link stayed under the pointer on drop, releasing over it would navigate
+// away from the calendar.
+export function CalendarChipOverlay({
+  task,
+  showProject,
+}: {
+  task: CalendarTask;
+  showProject: boolean;
+}) {
+  return (
+    <div className={CHIP_CONTAINER_CLASSNAME}>
+      <CalendarChipBody task={task} showProject={showProject} />
     </div>
   );
 }
