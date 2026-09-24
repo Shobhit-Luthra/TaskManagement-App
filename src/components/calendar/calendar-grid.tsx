@@ -37,7 +37,7 @@ export function CalendarGrid({
   showProject: boolean;
 }) {
   return (
-    <div role="grid" aria-label="Calendar" className="mt-4 overflow-x-auto rounded-xl border">
+    <div role="table" aria-label="Calendar" className="mt-4 overflow-x-auto rounded-xl border">
       <div role="row" className="bg-muted/50 grid min-w-[42rem] grid-cols-7 border-b">
         {WEEKDAYS.map((weekday) => (
           <div
@@ -90,7 +90,7 @@ function CalendarDay({
   return (
     <div
       ref={setNodeRef}
-      role="gridcell"
+      role="cell"
       aria-label={dayLabel(day)}
       aria-current={isToday ? "date" : undefined}
       className={cn(

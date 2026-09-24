@@ -46,14 +46,14 @@ function renderGrid(showProject = false) {
 
 it("renders 42 days and marks today", () => {
   renderGrid();
-  expect(screen.getAllByRole("gridcell")).toHaveLength(42);
-  const today = screen.getByRole("gridcell", { name: "Thursday, September 24" });
+  expect(screen.getAllByRole("cell")).toHaveLength(42);
+  const today = screen.getByRole("cell", { name: "Thursday, September 24" });
   expect(today).toHaveAttribute("aria-current", "date");
 });
 
 it("shows three chips per day and expands the rest", async () => {
   renderGrid();
-  const today = screen.getByRole("gridcell", { name: "Thursday, September 24" });
+  const today = screen.getByRole("cell", { name: "Thursday, September 24" });
   expect(within(today).getAllByRole("link")).toHaveLength(3);
   await userEvent.click(within(today).getByRole("button", { name: "+2 more" }));
   expect(within(today).getAllByRole("link")).toHaveLength(5);
