@@ -162,4 +162,43 @@ describe("useCalendarTasks", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result.current.tasks[0]!.due_date).toBe("2026-09-24");
   });
+
+  it("does not clobber fields refreshed while a reschedule PATCH is in flight", async () => {
+    let resolvePatch!: (value: unknown) => void;
+    const patchPromise = new Promise((resolve) => {
+      resolvePatch = resolve;
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(loaded([row]))
+      .mockImplementationOnce(() => patchPromise)
+      .mockResolvedValueOnce(loaded([{ ...row, title: "Renamed" }]));
+    const { result } = await mount(fetchMock);
+
+    let reschedulePromise!: Promise<void>;
+    act(() => {
+      reschedulePromise = result.current.reschedule("t1", "2026-09-30");
+    });
+
+    await act(async () => {
+      result.current.refresh();
+    });
+    await waitFor(() => expect(result.current.tasks[0]?.title).toBe("Renamed"));
+
+    await act(async () => {
+      resolvePatch({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: { ...row, due_date: "2026-09-30", updated_at: "2026-09-02T00:00:00Z" },
+        }),
+      });
+      await reschedulePromise;
+    });
+
+    expect(result.current.tasks[0]).toMatchObject({
+      title: "Renamed",
+      due_date: "2026-09-30",
+    });
+  });
 });

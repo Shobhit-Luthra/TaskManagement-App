@@ -51,6 +51,17 @@ export function useCalendarTasks(source: CalendarSource, range: { from: string; 
   const pending = useRef(new Set<string>());
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
   const url = calendarUrl(source, range, false);
+  // Kept in sync after every commit so async completions (PATCH, conflict,
+  // failure) can look up the CURRENT copy of a task instead of a stale
+  // call-time closure -- see `place` below.
+  const tasksRef = useRef(tasks);
+  const undatedRef = useRef(undated);
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+  useEffect(() => {
+    undatedRef.current = undated;
+  }, [undated]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -84,15 +95,28 @@ export function useCalendarTasks(source: CalendarSource, range: { from: string; 
     return () => controller.abort();
   }, [url, revision]);
 
-  function place(task: CalendarTask) {
-    setTasks((current) => [
-      ...current.filter((candidate) => candidate.id !== task.id),
-      ...(task.due_date ? [task] : []),
-    ]);
-    setUndated((current) => [
-      ...current.filter((candidate) => candidate.id !== task.id),
-      ...(task.due_date ? [] : [task]),
-    ]);
+  // Merges `patch` onto the CURRENT copy of the task (looked up in whichever
+  // list holds it right now, via the refs above), not the call-time snapshot
+  // -- so a refresh() landing while a PATCH is in flight doesn't get its
+  // fields clobbered by the PATCH completion. `fallback` is used only if the
+  // task is in neither list.
+  function place(
+    taskId: string,
+    patch: Partial<Pick<CalendarTask, "due_date" | "updated_at">>,
+    fallback: CalendarTask,
+  ) {
+    const existing =
+      tasksRef.current.find((candidate) => candidate.id === taskId) ??
+      undatedRef.current.find((candidate) => candidate.id === taskId);
+    const next = { ...(existing ?? fallback), ...patch };
+    setTasks((current) => {
+      const filtered = current.filter((candidate) => candidate.id !== taskId);
+      return next.due_date ? [...filtered, next] : filtered;
+    });
+    setUndated((current) => {
+      const filtered = current.filter((candidate) => candidate.id !== taskId);
+      return next.due_date ? filtered : [...filtered, next];
+    });
   }
 
   async function reschedule(taskId: string, dueDate: string) {
@@ -100,7 +124,7 @@ export function useCalendarTasks(source: CalendarSource, range: { from: string; 
     if (!task || !task.can_edit || task.due_date === dueDate || pending.current.has(taskId)) return;
     pending.current.add(taskId);
     setMessage(null);
-    place({ ...task, due_date: dueDate });
+    place(taskId, { due_date: dueDate }, task);
     try {
       const response = await fetch(`/api/v1/tasks/${taskId}`, {
         method: "PATCH",
@@ -117,14 +141,14 @@ export function useCalendarTasks(source: CalendarSource, range: { from: string; 
       const payload = (await response.json()) as SavePayload;
       const latest = payload.error?.details?.current;
       if (response.status === 409 && latest) {
-        place({ ...task, due_date: latest.due_date, updated_at: latest.updated_at });
+        place(taskId, { due_date: latest.due_date, updated_at: latest.updated_at }, task);
         setMessage("This task changed elsewhere. Its latest date is shown; try again.");
         return;
       }
       if (!response.ok || !payload.data) throw new Error("Reschedule rejected");
-      place({ ...task, due_date: payload.data.due_date, updated_at: payload.data.updated_at });
+      place(taskId, { due_date: payload.data.due_date, updated_at: payload.data.updated_at }, task);
     } catch {
-      place(task);
+      place(taskId, { due_date: task.due_date, updated_at: task.updated_at }, task);
       setMessage("The due date could not be changed. The task was returned to where it was.");
     } finally {
       pending.current.delete(taskId);
