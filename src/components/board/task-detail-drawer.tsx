@@ -407,6 +407,11 @@ function SubtaskList({
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const latestRef = useRef<Subtask[]>([]);
+  // Only report counts upstream once the initial load has actually
+  // succeeded. Otherwise `latestRef` is still `[]` when the load fails, and
+  // adding a subtask to a task that already has others would report
+  // "1 of 1" to the board/list chips instead of leaving their count alone.
+  const loadedRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -416,6 +421,7 @@ function SubtaskList({
         if (!response.ok || !isSubtaskList(payload)) throw new Error("Load rejected");
         if (active) {
           latestRef.current = payload.data;
+          loadedRef.current = true;
           setSubtasks(payload.data);
         }
       })
@@ -430,7 +436,9 @@ function SubtaskList({
     const next = update(latestRef.current);
     latestRef.current = next;
     setSubtasks(next);
-    onCountsChange?.(next.filter((subtask) => subtask.is_completed).length, next.length);
+    if (loadedRef.current) {
+      onCountsChange?.(next.filter((subtask) => subtask.is_completed).length, next.length);
+    }
   }
 
   async function addSubtask(event: React.FormEvent<HTMLFormElement>) {

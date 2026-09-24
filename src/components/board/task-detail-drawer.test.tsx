@@ -95,6 +95,28 @@ it("reports subtask counts after adding a subtask", async () => {
   await waitFor(() => expect(onSubtaskCountsChange).toHaveBeenCalledWith(0, 1));
 });
 
+it("does not report subtask counts when the initial load failed", async () => {
+  const onSubtaskCountsChange = vi.fn();
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: { id: "s1", task_id: "t1", title: "Draft", is_completed: false, position: 1 },
+        }),
+      }),
+  );
+  render(<TaskDetailDrawer {...props} onSubtaskCountsChange={onSubtaskCountsChange} />);
+  await screen.findByText("Subtasks could not be loaded.");
+  await userEvent.type(screen.getByLabelText("New subtask title"), "Draft");
+  await userEvent.click(screen.getByRole("button", { name: "Add" }));
+  await waitFor(() => expect(screen.getByDisplayValue("Draft")).toBeInTheDocument());
+  expect(onSubtaskCountsChange).not.toHaveBeenCalled();
+});
+
 it("does not drop an earlier toggle when two subtask updates overlap", async () => {
   const onSubtaskCountsChange = vi.fn();
   const subtaskA = { id: "s1", task_id: "t1", title: "A", is_completed: false, position: 1 };
