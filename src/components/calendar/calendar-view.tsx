@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -39,9 +39,19 @@ export function CalendarView({
   const [view, setView] = useState<View>("month");
   const [anchor, setAnchor] = useState(initialAnchor);
   const [today, setToday] = useState<string | null>(null);
+  // `initialAnchor` is computed server-side (UTC for My Tasks, the project's
+  // timezone for a project calendar) before we know the browser's own zone.
+  // Near a month boundary those can disagree, so once the browser-zone
+  // "today" is known, re-anchor to it -- but only if the user hasn't already
+  // navigated away from wherever they started.
+  const navigatedRef = useRef(false);
   useEffect(() => {
     const zone = timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const timer = window.setTimeout(() => setToday(todayInTimeZone(new Date(), zone)), 0);
+    const timer = window.setTimeout(() => {
+      const computedToday = todayInTimeZone(new Date(), zone);
+      setToday(computedToday);
+      if (!navigatedRef.current) setAnchor(computedToday);
+    }, 0);
     return () => window.clearTimeout(timer);
   }, [timeZone]);
 
@@ -82,18 +92,31 @@ export function CalendarView({
             variant="outline"
             size="icon-sm"
             aria-label={view === "month" ? "Previous month" : "Previous week"}
-            onClick={() => setAnchor((current) => shiftAnchor(view, current, -1))}
+            onClick={() => {
+              navigatedRef.current = true;
+              setAnchor((current) => shiftAnchor(view, current, -1));
+            }}
           >
             <ChevronLeft />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setAnchor(today ?? initialAnchor)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              navigatedRef.current = true;
+              setAnchor(today ?? initialAnchor);
+            }}
+          >
             Today
           </Button>
           <Button
             variant="outline"
             size="icon-sm"
             aria-label={view === "month" ? "Next month" : "Next week"}
-            onClick={() => setAnchor((current) => shiftAnchor(view, current, 1))}
+            onClick={() => {
+              navigatedRef.current = true;
+              setAnchor((current) => shiftAnchor(view, current, 1));
+            }}
           >
             <ChevronRight />
           </Button>
