@@ -202,6 +202,13 @@ export function ProjectTaskList({
               ),
             )
           }
+          onLinkCountChange={(count) =>
+            setTasks((current) =>
+              current.map((task) =>
+                task.id === editingTask.id ? { ...task, link_count: count } : task,
+              ),
+            )
+          }
         />
       )}
     </div>

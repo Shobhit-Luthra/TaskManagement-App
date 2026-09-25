@@ -5,6 +5,7 @@ import type { BoardColumn, BoardTask } from "@/components/board/project-board";
 import type { PeerOption } from "@/components/board/mention-autocomplete";
 import { LabelChip } from "@/components/labels/label-chip";
 import { SubtaskProgress } from "@/components/tasks/subtask-progress";
+import { LinkCount } from "@/components/tasks/link-count";
 
 export type InlineTaskPatch = {
   assigneeId?: string | null;
@@ -140,6 +141,7 @@ export function TaskTable({
                       done={task.subtask_done ?? 0}
                       total={task.subtask_total ?? 0}
                     />
+                    <LinkCount count={task.link_count ?? 0} />
                     {task.labels?.map((label) => (
                       <LabelChip key={label.id} name={label.name} color={label.color} />
                     ))}

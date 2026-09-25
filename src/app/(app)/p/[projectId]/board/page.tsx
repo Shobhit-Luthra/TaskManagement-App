@@ -5,6 +5,7 @@ import { ProjectBoard, type BoardColumn, type BoardTask } from "@/components/boa
 import { BoardHeaderInvite } from "@/components/members/board-header-invite";
 import { createClient } from "@/lib/supabase/server";
 import { subtaskCounts } from "@/lib/tasks/subtask-counts";
+import { embeddedCount } from "@/lib/tasks/embedded-count";
 
 export default async function BoardPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
@@ -35,7 +36,7 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
     supabase
       .from("tasks")
       .select(
-        "id, column_id, title, description, due_date, priority, position, assignee_id, created_at, updated_at, task_labels(labels(id, name, color)), subtasks(is_completed)",
+        "id, column_id, title, description, due_date, priority, position, assignee_id, created_at, updated_at, task_labels(labels(id, name, color)), subtasks(is_completed), task_links(count)",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null)
@@ -60,9 +61,10 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
     );
   }
   const columns = (columnData ?? []) as BoardColumn[];
-  const tasks = (taskData ?? []).map(({ subtasks, ...task }) => ({
+  const tasks = (taskData ?? []).map(({ subtasks, task_links, ...task }) => ({
     ...task,
     ...subtaskCounts(subtasks),
+    link_count: embeddedCount(task_links),
     labels: (task.task_labels ?? []).flatMap((taskLabel) => {
       const label = Array.isArray(taskLabel.labels) ? taskLabel.labels[0] : taskLabel.labels;
       return label ? [{ id: label.id, name: label.name, color: label.color }] : [];

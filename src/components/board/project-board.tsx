@@ -30,6 +30,7 @@ import type { PeerOption } from "./mention-autocomplete";
 import { LabelChip } from "@/components/labels/label-chip";
 import { type LabelOption } from "@/components/labels/label-picker";
 import { SubtaskProgress } from "@/components/tasks/subtask-progress";
+import { LinkCount } from "@/components/tasks/link-count";
 import { applyFilters } from "@/lib/filters/apply";
 import { useFilterState } from "./use-filter-state";
 import { FilterBar } from "./filter-bar";
@@ -58,6 +59,7 @@ export type BoardTask = {
   labels?: LabelOption[];
   subtask_done?: number;
   subtask_total?: number;
+  link_count?: number;
 };
 
 export function ProjectBoard({
@@ -468,6 +470,13 @@ export function ProjectBoard({
               ),
             )
           }
+          onLinkCountChange={(count) =>
+            setTasks((current) =>
+              current.map((candidate) =>
+                candidate.id === editingTask.id ? { ...candidate, link_count: count } : candidate,
+              ),
+            )
+          }
         />
       )}
     </section>
@@ -679,6 +688,7 @@ function TaskCard({
           {task.priority}
         </span>
         <SubtaskProgress done={task.subtask_done ?? 0} total={task.subtask_total ?? 0} />
+        <LinkCount count={task.link_count ?? 0} />
         {due && (
           <span
             className={cn(
