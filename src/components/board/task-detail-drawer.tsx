@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AssigneePicker } from "./assignee-picker";
 import { CommentThread } from "./comment-thread";
 import { TaskActivity } from "./task-activity";
+import { TaskLinks } from "./task-links";
 import type { PeerOption } from "./mention-autocomplete";
 import { LabelPicker, type LabelOption } from "@/components/labels/label-picker";
 import type { BoardTask } from "./project-board";
@@ -61,6 +62,7 @@ export function TaskDetailDrawer({
   onSaved,
   onDeleted,
   onSubtaskCountsChange,
+  onLinkCountChange,
 }: {
   projectId: string;
   currentUserId: string;
@@ -75,6 +77,7 @@ export function TaskDetailDrawer({
   onSaved: (task: BoardTask) => void;
   onDeleted: (taskId: string) => void;
   onSubtaskCountsChange?: (done: number, total: number) => void;
+  onLinkCountChange?: (count: number) => void;
 }) {
   const [returnFocus] = useState(() =>
     typeof document === "undefined" ? null : document.activeElement,
@@ -309,6 +312,13 @@ export function TaskDetailDrawer({
             taskId={task.id}
             readOnly={readOnly}
             onCountsChange={onSubtaskCountsChange}
+          />
+          <TaskLinks
+            taskId={task.id}
+            currentUserId={currentUserId}
+            currentUserRole={currentUserRole}
+            readOnly={readOnly}
+            onCountChange={onLinkCountChange}
           />
           <Tabs defaultValue="comments">
             <TabsList className="w-full">
