@@ -43,6 +43,11 @@
     "tailwind-merge": "^3.6.0",
     "zod": "^3.25.76"
   },
+  "overrides": {
+    "@vercel/routing-utils": {
+      "path-to-regexp": "^6.3.0"
+    }
+  },
   "lint-staged": {
     "*.{ts,tsx}": [
       "eslint --fix",
