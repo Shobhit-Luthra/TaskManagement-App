@@ -19,7 +19,7 @@ function anonClient(): SupabaseClient {
   });
 }
 
-async function createConfirmedUser(admin: SupabaseClient, label: string) {
+export async function createConfirmedUser(admin: SupabaseClient, label: string) {
   const email = `rls-${label}-${crypto.randomUUID()}@example.test`;
   const password = `Pw-${crypto.randomUUID()}`;
   const { data, error } = await admin.auth.admin.createUser({
