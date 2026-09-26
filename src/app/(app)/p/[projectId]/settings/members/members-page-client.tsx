@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { MembersTable, type MemberRow } from "@/components/members/members-table";
 import { InviteDialog } from "@/components/members/invite-dialog";
+import { JoinRequests } from "@/components/members/join-requests";
+import { grantableRoles, type JoinRole, type PendingJoinRequest } from "@/lib/join-codes/schemas";
 import {
   PendingInvitations,
   type PendingInvitation,
@@ -34,10 +36,15 @@ async function readError(response: Response, fallback: string): Promise<string> 
 async function fetchMembersAndInvitations(
   projectId: string,
   canManage: boolean,
-): Promise<{ members: MemberRow[]; invitations: PendingInvitation[] }> {
-  const [membersResponse, invitationsResponse] = await Promise.all([
+): Promise<{
+  members: MemberRow[];
+  invitations: PendingInvitation[];
+  joinRequests: PendingJoinRequest[];
+}> {
+  const [membersResponse, invitationsResponse, joinRequestsResponse] = await Promise.all([
     fetch(`/api/v1/projects/${projectId}/members`),
     canManage ? fetch(`/api/v1/projects/${projectId}/invitations`) : Promise.resolve(null),
+    canManage ? fetch(`/api/v1/projects/${projectId}/join-requests`) : Promise.resolve(null),
   ]);
   if (!membersResponse.ok)
     throw new Error(await readError(membersResponse, "Members could not be loaded."));
@@ -60,7 +67,13 @@ async function fetchMembersAndInvitations(
       expiresAt: row.expires_at,
     }));
   }
-  return { members, invitations };
+  let joinRequests: PendingJoinRequest[] = [];
+  if (joinRequestsResponse) {
+    if (!joinRequestsResponse.ok)
+      throw new Error(await readError(joinRequestsResponse, "Join requests could not be loaded."));
+    joinRequests = ((await joinRequestsResponse.json()) as { data: PendingJoinRequest[] }).data;
+  }
+  return { members, invitations, joinRequests };
 }
 
 export function MembersPageClient({
@@ -75,6 +88,7 @@ export function MembersPageClient({
   const router = useRouter();
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
+  const [joinRequests, setJoinRequests] = useState<PendingJoinRequest[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -87,6 +101,7 @@ export function MembersPageClient({
       const data = await fetchMembersAndInvitations(projectId, canManage);
       setMembers(data.members);
       setInvitations(data.invitations);
+      setJoinRequests(data.joinRequests);
       setStatus("ready");
     } catch {
       setStatus("error");
@@ -100,6 +115,7 @@ export function MembersPageClient({
         if (!active) return;
         setMembers(data.members);
         setInvitations(data.invitations);
+        setJoinRequests(data.joinRequests);
         setStatus("ready");
       })
       .catch(() => {
@@ -133,6 +149,20 @@ export function MembersPageClient({
     });
     if (!response.ok) {
       setMessage(await readError(response, "The invitation could not be revoked."));
+      return;
+    }
+    await load();
+  }
+
+  async function handleDecide(requestId: string, decision: "approve" | "deny", role?: JoinRole) {
+    setMessage(null);
+    const response = await fetch(`/api/v1/join-requests/${requestId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(decision === "approve" ? { decision, role } : { decision }),
+    });
+    if (!response.ok) {
+      setMessage(await readError(response, "The request could not be updated."));
       return;
     }
     await load();
@@ -200,13 +230,25 @@ export function MembersPageClient({
         />
       </div>
       {canManage && (
+        <JoinRequests
+          requests={joinRequests}
+          grantableRoles={grantableRoles(currentUserRole)}
+          onDecide={handleDecide}
+        />
+      )}
+      {canManage && (
         <PendingInvitations
           invitations={invitations}
           canManage={canManage}
           onRevoke={(id) => void handleRevoke(id)}
         />
       )}
-      <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} onInvite={handleInvite} />
+      <InviteDialog
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+        onInvite={handleInvite}
+        projectId={canManage ? projectId : undefined}
+      />
     </div>
   );
 }

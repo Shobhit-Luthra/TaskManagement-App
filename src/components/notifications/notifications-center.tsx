@@ -20,6 +20,7 @@ type Notification = {
 
 // G14: canonical deep link — the board route opens the task modal from ?task=.
 function deepLink(n: Notification): string {
+  if (n.type === "join_requested") return `/p/${n.project_id}/settings/members`;
   return n.task_id ? `/p/${n.project_id}/board?task=${n.task_id}` : `/p/${n.project_id}/board`;
 }
 
@@ -38,6 +39,8 @@ function describe(n: Notification): string {
       return `"${title}" is due soon`;
     case "digest_ready":
       return "This week's digest is ready";
+    case "join_requested":
+      return `${String(n.payload.requesterName ?? "Someone")} asked to join ${String(n.payload.projectName ?? "your board")}`;
     default:
       return title;
   }

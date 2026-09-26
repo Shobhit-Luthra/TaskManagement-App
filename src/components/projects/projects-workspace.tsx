@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { FolderKanban, Plus, RotateCcw } from "lucide-react";
+import { FolderKanban, KeyRound, Plus, RotateCcw } from "lucide-react";
 import { CreateProjectForm } from "@/components/projects/create-project-form";
+import { JoinBoardDialog } from "@/components/projects/join-board-dialog";
+import type { MyJoinRequest } from "@/lib/join-codes/schemas";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -63,6 +65,16 @@ export function ProjectsWorkspace() {
   const [status, setStatus] = useState<Status>("loading");
   const [leavingId, setLeavingId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [joinOpen, setJoinOpen] = useState(false);
+  const [joinRequests, setJoinRequests] = useState<MyJoinRequest[]>([]);
+  const loadJoinRequests = useCallback(() => {
+    void fetch("/api/v1/join")
+      .then(async (response) =>
+        response.ok ? ((await response.json()).data as MyJoinRequest[]) : [],
+      )
+      .then(setJoinRequests)
+      .catch(() => setJoinRequests([]));
+  }, []);
   const load = useCallback(() => {
     setStatus("loading");
     void fetchProjects()
@@ -84,6 +96,7 @@ export function ProjectsWorkspace() {
       .catch(() => {
         if (active) setStatus("error");
       });
+    loadJoinRequests();
     void createClient()
       .auth.getUser()
       .then(({ data }) => {
@@ -92,7 +105,12 @@ export function ProjectsWorkspace() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadJoinRequests]);
+
+  async function cancelJoinRequest(requestId: string) {
+    const response = await fetch(`/api/v1/join-requests/${requestId}`, { method: "DELETE" });
+    if (response.ok) loadJoinRequests();
+  }
 
   async function handleLeave(projectId: string) {
     if (!currentUserId) return;
@@ -113,26 +131,56 @@ export function ProjectsWorkspace() {
             Create a shared workspace, then move work from idea to done.
           </p>
         </div>
-        {status === "ready" && projects.length > 0 && (
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button type="button">
-                <Plus /> New project
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create a project</DialogTitle>
-                <DialogDescription>
-                  Start with a name. Kanbo creates your first workflow so your team can add work
-                  straight away.
-                </DialogDescription>
-              </DialogHeader>
-              <CreateProjectForm />
-            </DialogContent>
-          </Dialog>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {status !== "loading" && (
+            <Button type="button" variant="outline" onClick={() => setJoinOpen(true)}>
+              <KeyRound /> Join a board
+            </Button>
+          )}
+          {status === "ready" && projects.length > 0 && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button type="button">
+                  <Plus /> New project
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create a project</DialogTitle>
+                  <DialogDescription>
+                    Start with a name. Kanbo creates your first workflow so your team can add work
+                    straight away.
+                  </DialogDescription>
+                </DialogHeader>
+                <CreateProjectForm />
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
       </div>
+      <JoinBoardDialog open={joinOpen} onOpenChange={setJoinOpen} onRequested={loadJoinRequests} />
+      {joinRequests.length > 0 && (
+        <section aria-labelledby="my-join-requests" className="mt-8 rounded-xl border p-4">
+          <h2 id="my-join-requests" className="text-sm font-semibold">
+            Waiting for approval
+          </h2>
+          <ul className="mt-2 space-y-2">
+            {joinRequests.map((request) => (
+              <li key={request.id} className="flex items-center justify-between gap-3 text-sm">
+                <span className="truncate">{request.project_name}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void cancelJoinRequest(request.id)}
+                >
+                  Cancel
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {status === "loading" ? (
         <p className="text-muted-foreground mt-8 text-sm">Loading projects…</p>
       ) : status === "error" ? (

@@ -38,6 +38,8 @@ function describe(n: NotificationRow): string {
       return `"${title}" moved to ${String(n.payload.toColumn ?? "a new column")}`;
     case "due_soon":
       return `"${title}" is due soon`;
+    case "join_requested":
+      return `${String(n.payload.requesterName ?? "Someone")} asked to join ${String(n.payload.projectName ?? "your board")}`;
     default:
       return title;
   }

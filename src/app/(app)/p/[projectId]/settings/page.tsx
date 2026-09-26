@@ -7,23 +7,32 @@ import { createClient } from "@/lib/supabase/server";
 export default async function SettingsPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const supabase = await createClient();
-  const [{ data: project }, { data: membership }, { data: columns }] = await Promise.all([
-    supabase
-      .from("projects")
-      .select("id, name, description, timezone")
-      .eq("id", projectId)
-      .is("deleted_at", null)
-      .maybeSingle(),
-    supabase.from("memberships").select("role").eq("project_id", projectId).maybeSingle(),
-    supabase
-      .from("columns")
-      .select("id, name, position, wip_limit, is_done_column, is_in_progress_column")
-      .eq("project_id", projectId)
-      .is("deleted_at", null)
-      .order("position"),
-  ]);
+  const [{ data: project }, { data: isAdmin }, { data: columns }, { count: pendingJoinRequests }] =
+    await Promise.all([
+      supabase
+        .from("projects")
+        .select("id, name, description, timezone")
+        .eq("id", projectId)
+        .is("deleted_at", null)
+        .maybeSingle(),
+      // Not a memberships query: RLS returns every member's row, so an
+      // unfiltered maybeSingle() errors on any project with 2+ members.
+      supabase.rpc("is_project_admin", { target_project: projectId }),
+      supabase
+        .from("columns")
+        .select("id, name, position, wip_limit, is_done_column, is_in_progress_column")
+        .eq("project_id", projectId)
+        .is("deleted_at", null)
+        .order("position"),
+      // RLS shows admins every request for the project (and others only their own).
+      supabase
+        .from("join_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("project_id", projectId)
+        .eq("status", "pending"),
+    ]);
   if (!project) notFound();
-  const canManage = membership?.role === "owner" || membership?.role === "admin";
+  const canManage = isAdmin === true;
   return (
     <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
       <Link
@@ -44,7 +53,14 @@ export default async function SettingsPage({ params }: { params: Promise<{ proje
             href={`/p/${projectId}/settings/members`}
             className="text-muted-foreground hover:text-foreground text-sm font-medium"
           >
-            Members →
+            Members
+            {canManage && !!pendingJoinRequests && (
+              <span className="bg-primary text-primary-foreground ml-1.5 rounded-full px-1.5 py-0.5 text-xs">
+                {pendingJoinRequests}
+                <span className="sr-only"> pending join requests</span>
+              </span>
+            )}{" "}
+            →
           </Link>
           <Link
             href={`/p/${projectId}/settings/labels`}

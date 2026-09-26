@@ -41,7 +41,12 @@ export function BoardHeaderInvite({
           Invite
         </Button>
       )}
-      <InviteDialog open={open} onOpenChange={setOpen} onInvite={handleInvite} />
+      <InviteDialog
+        open={open}
+        onOpenChange={setOpen}
+        onInvite={handleInvite}
+        projectId={projectId}
+      />
     </div>
   );
 }
