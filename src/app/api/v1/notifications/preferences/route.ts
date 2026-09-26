@@ -3,7 +3,14 @@ import { json, withApiHandler } from "@/lib/api/handler";
 import { RATE_LIMITS } from "@/lib/api/rate-limit";
 import { apiError } from "@/lib/api/response";
 
-const CATEGORIES = ["assignment", "mention", "status_change", "due_soon", "digest"] as const;
+const CATEGORIES = [
+  "assignment",
+  "mention",
+  "status_change",
+  "due_soon",
+  "digest",
+  "membership",
+] as const;
 
 export const GET = withApiHandler(
   { rateLimit: RATE_LIMITS.reads, unauthenticatedMessage: "Sign in to view preferences." },

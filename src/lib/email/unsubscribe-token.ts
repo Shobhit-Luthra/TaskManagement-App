@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export type NotificationCategory =
-  "assignment" | "mention" | "status_change" | "due_soon" | "digest";
+  "assignment" | "mention" | "status_change" | "due_soon" | "digest" | "membership";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 

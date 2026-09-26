@@ -8,6 +8,11 @@ export const RATE_LIMITS = {
   reads: { name: "reads", limit: 300, windowSeconds: 60 },
   invitations: { name: "invitations", limit: 20, windowSeconds: 3600 },
   analytics: { name: "analytics", limit: 30, windowSeconds: 60 },
+  // Join codes are 6 digits (10^6 space): guesses are capped per user in a
+  // short and a daily window, and per source IP so extra accounts don't help.
+  joinCode: { name: "join-code", limit: 10, windowSeconds: 900 },
+  joinCodeDaily: { name: "join-code-daily", limit: 30, windowSeconds: 86400 },
+  joinCodeIp: { name: "join-code-ip", limit: 30, windowSeconds: 900 },
 } as const satisfies Record<string, RateLimitPolicy>;
 
 export async function consumeRateLimit(
