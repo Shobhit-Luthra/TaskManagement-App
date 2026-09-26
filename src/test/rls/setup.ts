@@ -19,6 +19,41 @@ function anonClient(): SupabaseClient {
   });
 }
 
+/**
+ * Deletes test users and everything that would block their deletion.
+ * projects.owner_id, tasks.created_by, comments.author_id and
+ * invitations.invited_by are ON DELETE RESTRICT, so a bare deleteUser()
+ * fails (silently, before this helper) for anyone who created data, and the
+ * rows accumulate in whatever database the suite runs against. Throws so a
+ * leak fails the suite instead of passing unnoticed.
+ */
+export async function deleteTestUsers(admin: SupabaseClient, userIds: string[]): Promise<void> {
+  const ids = userIds.filter(Boolean);
+  if (ids.length === 0) return;
+  const check = ({ error }: { error: { message: string } | null }) => {
+    if (error) throw new Error(`test cleanup failed: ${error.message}`);
+  };
+  const { data: owned, error: ownedError } = await admin
+    .from("projects")
+    .select("id")
+    .in("owner_id", ids);
+  check({ error: ownedError });
+  const projectIds = (owned ?? []).map((row) => row.id as string);
+  if (projectIds.length > 0) {
+    // Tasks first: tasks(column_id, project_id) -> columns is not cascading,
+    // so a project cascade that reaches columns before tasks is refused.
+    check(await admin.from("tasks").delete().in("project_id", projectIds));
+    check(await admin.from("projects").delete().in("id", projectIds));
+  }
+  check(await admin.from("comments").delete().in("author_id", ids));
+  check(await admin.from("invitations").delete().in("invited_by", ids));
+  check(await admin.from("tasks").delete().in("created_by", ids));
+  for (const id of ids) {
+    const { error } = await admin.auth.admin.deleteUser(id);
+    if (error) throw new Error(`test cleanup could not delete user ${id}: ${error.message}`);
+  }
+}
+
 export async function createConfirmedUser(admin: SupabaseClient, label: string) {
   const email = `rls-${label}-${crypto.randomUUID()}@example.test`;
   const password = `Pw-${crypto.randomUUID()}`;
@@ -78,8 +113,7 @@ export async function seedIsolationFixture(): Promise<IsolationFixture> {
     columnId,
     taskId: taskRow.id as string,
     async cleanup() {
-      await admin.auth.admin.deleteUser(b.id);
-      await admin.auth.admin.deleteUser(a.id);
+      await deleteTestUsers(admin, [b.id, a.id]);
     },
   };
 }

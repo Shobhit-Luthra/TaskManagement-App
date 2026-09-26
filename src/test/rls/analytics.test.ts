@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createConfirmedUser, seedIsolationFixture, type IsolationFixture } from "./setup";
+import {
+  createConfirmedUser,
+  deleteTestUsers,
+  seedIsolationFixture,
+  type IsolationFixture,
+} from "./setup";
 
 let f: IsolationFixture;
 beforeAll(async () => {
@@ -237,7 +242,7 @@ describe("admin-only analytics and progress views (2026-09-26)", () => {
     doneColumnId = columns!.find((c) => c.is_done_column)!.id as string;
   });
   afterAll(async () => {
-    if (projectAdmin) await admin.auth.admin.deleteUser(projectAdmin.id);
+    if (projectAdmin) await deleteTestUsers(admin, [projectAdmin.id]);
   });
 
   async function insertTask(fields: Record<string, unknown>) {

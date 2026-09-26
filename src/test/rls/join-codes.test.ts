@@ -1,7 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createConfirmedUser, seedIsolationFixture, type IsolationFixture } from "./setup";
+import {
+  createConfirmedUser,
+  deleteTestUsers,
+  seedIsolationFixture,
+  type IsolationFixture,
+} from "./setup";
 
 // Roles in play: A = owner, B = outsider asking to join, C = becomes member,
 // D = becomes admin, E = outsider D tries to approve. Runs top to bottom.
@@ -21,7 +26,10 @@ beforeAll(async () => {
   extra.push(c, d, e);
 });
 afterAll(async () => {
-  for (const user of extra) await admin.auth.admin.deleteUser(user.id);
+  await deleteTestUsers(
+    admin,
+    extra.map((user) => user.id),
+  );
   await fixture?.cleanup();
 });
 
