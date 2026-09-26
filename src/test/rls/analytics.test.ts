@@ -367,7 +367,12 @@ describe("admin-only analytics and progress views (2026-09-26)", () => {
       .insert({ project_id: f.projectId, name: "Bug", color: "#cc3300" })
       .select("id")
       .single();
-    const { data: late } = await admin.from("tasks").select("id").eq("title", "late").single();
+    const { data: late } = await admin
+      .from("tasks")
+      .select("id")
+      .eq("project_id", f.projectId)
+      .eq("title", "late")
+      .single();
     await admin.from("task_labels").insert({ task_id: late!.id, label_id: label!.id });
 
     const { data, error } = await f.a.rpc("analytics_breakdown", { p_project_id: f.projectId });
