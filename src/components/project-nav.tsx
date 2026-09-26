@@ -26,9 +26,11 @@ export function ProjectNav({ projectId, role }: { projectId: string; role: strin
     { label: "Calendar", href: `${base}/calendar`, icon: CalendarDays, filters: false },
     { label: "My Tasks", href: "/my-tasks", icon: CheckCircle2, filters: false },
     { label: "Activity", href: `${base}/activity`, icon: Activity, filters: false },
-    { label: "Analytics", href: `${base}/analytics`, icon: BarChart3, filters: false },
     ...(["owner", "admin"].includes(role)
-      ? [{ label: "Settings", href: `${base}/settings`, icon: Settings, filters: false }]
+      ? [
+          { label: "Analytics", href: `${base}/analytics`, icon: BarChart3, filters: false },
+          { label: "Settings", href: `${base}/settings`, icon: Settings, filters: false },
+        ]
       : []),
     ...(role !== "viewer"
       ? [{ label: "Trash", href: `${base}/trash`, icon: Trash2, filters: false }]
