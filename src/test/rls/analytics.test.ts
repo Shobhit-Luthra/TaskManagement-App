@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { seedIsolationFixture, type IsolationFixture } from "./setup";
+import { createConfirmedUser, seedIsolationFixture, type IsolationFixture } from "./setup";
 
 let f: IsolationFixture;
 beforeAll(async () => {
@@ -210,5 +210,187 @@ describe("analytics_throughput / analytics_workload / analytics_summary / analyt
     const row = Array.isArray(data) ? data[0] : data;
     expect(row.total_open).toBeGreaterThanOrEqual(0);
     expect(row.total_done).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe("admin-only analytics and progress views (2026-09-26)", () => {
+  const admin = createAdminClient();
+  let projectAdmin: Awaited<ReturnType<typeof createConfirmedUser>>;
+  let firstColumnId: string;
+  let doneColumnId: string;
+  const dayOffset = (days: number) =>
+    new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10); // project tz is UTC
+
+  beforeAll(async () => {
+    projectAdmin = await createConfirmedUser(admin, "analytics-admin");
+    await admin.from("memberships").insert([
+      { project_id: f.projectId, user_id: f.bId, role: "member" },
+      { project_id: f.projectId, user_id: projectAdmin.id, role: "admin" },
+    ]);
+    const { data: columns } = await admin
+      .from("columns")
+      .select("id, is_done_column, position")
+      .eq("project_id", f.projectId)
+      .is("deleted_at", null)
+      .order("position");
+    firstColumnId = columns![0]!.id as string;
+    doneColumnId = columns!.find((c) => c.is_done_column)!.id as string;
+  });
+  afterAll(async () => {
+    if (projectAdmin) await admin.auth.admin.deleteUser(projectAdmin.id);
+  });
+
+  async function insertTask(fields: Record<string, unknown>) {
+    const { data, error } = await admin
+      .from("tasks")
+      .insert({
+        project_id: f.projectId,
+        column_id: firstColumnId,
+        created_by: f.aId,
+        position: Math.random(),
+        ...fields,
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    return data.id as string;
+  }
+
+  it("gives a plain member P0002 from every analytics RPC", async () => {
+    const calls: [string, Record<string, unknown>][] = [
+      ["analytics_throughput", { p_weeks: 12 }],
+      ["analytics_cycle_time", { p_weeks: 12 }],
+      ["analytics_cumulative_flow", { p_days: 30 }],
+      ["analytics_workload", {}],
+      ["analytics_summary", {}],
+      ["analytics_column_breakdown", {}],
+      ["analytics_member_progress", { p_days: 30 }],
+      ["analytics_at_risk", { p_limit: 50 }],
+      ["analytics_breakdown", {}],
+    ];
+    for (const [fn, args] of calls) {
+      const { error } = await f.b.rpc(fn, { p_project_id: f.projectId, ...args });
+      expect(error?.code, fn).toBe("P0002");
+      const asAdmin = await projectAdmin.client.rpc(fn, { p_project_id: f.projectId, ...args });
+      expect(asAdmin.error, fn).toBeNull();
+    }
+  });
+
+  it("column breakdown matches live tasks and ignores soft-deleted ones", async () => {
+    const read = async () => {
+      const { data } = await f.a.rpc("analytics_column_breakdown", { p_project_id: f.projectId });
+      return data as { column_id: string; task_count: number; is_done_column: boolean }[];
+    };
+    const before = await read();
+    const { count } = await admin
+      .from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", f.projectId)
+      .is("deleted_at", null);
+    expect(before.reduce((sum, row) => sum + row.task_count, 0)).toBe(count);
+
+    await insertTask({ title: "soon-deleted", deleted_at: new Date().toISOString() });
+    const after = await read();
+    expect(after).toEqual(before);
+  });
+
+  it("member progress counts overdue, due-soon and recent completions, with an Unassigned row", async () => {
+    await insertTask({
+      title: "late",
+      assignee_id: f.bId,
+      due_date: dayOffset(-2),
+      priority: "low",
+    });
+    await insertTask({
+      title: "soon",
+      assignee_id: f.bId,
+      due_date: dayOffset(2),
+      priority: "urgent",
+    });
+    const finished = await insertTask({
+      title: "finished",
+      assignee_id: f.bId,
+      column_id: doneColumnId,
+    });
+    await admin.from("activity").insert({
+      project_id: f.projectId,
+      actor_id: f.bId,
+      task_id: finished,
+      entity_type: "task",
+      entity_id: finished,
+      action: "completed",
+    });
+
+    const { data, error } = await f.a.rpc("analytics_member_progress", {
+      p_project_id: f.projectId,
+      p_days: 30,
+    });
+    expect(error).toBeNull();
+    const rows = data as {
+      member_user_id: string | null;
+      display_name: string;
+      open_count: number;
+      overdue_count: number;
+      due_soon_count: number;
+      completed_in_period: number;
+    }[];
+    const b = rows.find((row) => row.member_user_id === f.bId)!;
+    expect(b).toMatchObject({
+      open_count: 2,
+      overdue_count: 1,
+      due_soon_count: 1,
+      completed_in_period: 1,
+    });
+    expect(rows.find((row) => row.member_user_id === null)?.display_name).toBe("Unassigned");
+    // The seeded January completions are outside the 30-day window.
+    const a = rows.find((row) => row.member_user_id === f.aId)!;
+    expect(a.completed_in_period).toBe(0);
+  });
+
+  it("at-risk lists overdue before due-soon and leaves out done and far-off tasks", async () => {
+    await insertTask({ title: "far-off", due_date: dayOffset(20) });
+    await insertTask({ title: "done-late", column_id: doneColumnId, due_date: dayOffset(-5) });
+    const { data, error } = await f.a.rpc("analytics_at_risk", {
+      p_project_id: f.projectId,
+      p_limit: 50,
+    });
+    expect(error).toBeNull();
+    const titles = (data as { title: string }[]).map((row) => row.title);
+    expect(titles).toEqual(["late", "soon"]);
+    expect(data![0]).toMatchObject({ is_overdue: true, days_until_due: -2 });
+    expect(data![1]).toMatchObject({ is_overdue: false, days_until_due: 2 });
+  });
+
+  it("breakdown covers every priority and counts labelled tasks", async () => {
+    const { data: label } = await admin
+      .from("labels")
+      .insert({ project_id: f.projectId, name: "Bug", color: "#cc3300" })
+      .select("id")
+      .single();
+    const { data: late } = await admin.from("tasks").select("id").eq("title", "late").single();
+    await admin.from("task_labels").insert({ task_id: late!.id, label_id: label!.id });
+
+    const { data, error } = await f.a.rpc("analytics_breakdown", { p_project_id: f.projectId });
+    expect(error).toBeNull();
+    const rows = data as {
+      dimension: string;
+      key: string;
+      open_count: number;
+      done_count: number;
+    }[];
+    expect(
+      rows
+        .filter((row) => row.dimension === "priority")
+        .map((row) => row.key)
+        .sort(),
+    ).toEqual(["high", "low", "medium", "urgent"]);
+    expect(
+      rows.find((row) => row.dimension === "priority" && row.key === "urgent")?.open_count,
+    ).toBe(1);
+    expect(rows.find((row) => row.dimension === "label")).toMatchObject({
+      key: label!.id,
+      open_count: 1,
+      done_count: 0,
+    });
   });
 });
