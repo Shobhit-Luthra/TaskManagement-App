@@ -5,7 +5,10 @@ import { StatTile } from "@/components/analytics/stat-tile";
 import { ThroughputChart } from "@/components/analytics/throughput-chart";
 import { CycleTimeChart } from "@/components/analytics/cycle-time-chart";
 import { CumulativeFlowChart } from "@/components/analytics/cumulative-flow-chart";
-import { WorkloadChart } from "@/components/analytics/workload-chart";
+import { ProgressOverview } from "@/components/analytics/progress-overview";
+import { MemberProgressTable } from "@/components/analytics/member-progress-table";
+import { AtRiskList } from "@/components/analytics/at-risk-list";
+import { BreakdownChart, type BreakdownRow } from "@/components/analytics/breakdown-chart";
 
 export default async function AnalyticsPage({
   params,
@@ -15,20 +18,37 @@ export default async function AnalyticsPage({
   const { projectId } = await params;
   const supabase = await createClient();
 
-  const [throughput, cycleTime, flow, workload, summary] = await Promise.all([
-    supabase.rpc("analytics_throughput", { p_project_id: projectId, p_weeks: 12 }),
-    supabase.rpc("analytics_cycle_time", { p_project_id: projectId, p_weeks: 12 }),
-    supabase.rpc("analytics_cumulative_flow", { p_project_id: projectId, p_days: 30 }),
-    supabase.rpc("analytics_workload", { p_project_id: projectId }),
-    supabase.rpc("analytics_summary", { p_project_id: projectId }),
-  ]);
+  // Analytics is owner/admin only. The RPCs enforce this too (P0002 for
+  // anyone else); checking first avoids eight doomed round-trips.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) notFound();
+  const { data: membership } = await supabase
+    .from("memberships")
+    .select("role")
+    .eq("project_id", projectId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (membership?.role !== "owner" && membership?.role !== "admin") notFound();
 
-  // A non-member gets P0002 (project-scoped 404, matching every other
-  // project-scoped read in this app) from every RPC above — surface it
-  // instead of rendering a zeroed dashboard that looks like real data. Any
-  // other error (timeout, migration drift) is a genuine failure, not "no
-  // data," so it must not render as legitimate zeros either.
-  const results = [throughput, cycleTime, flow, workload, summary];
+  const [throughput, cycleTime, flow, summary, columns, members, atRisk, breakdown] =
+    await Promise.all([
+      supabase.rpc("analytics_throughput", { p_project_id: projectId, p_weeks: 12 }),
+      supabase.rpc("analytics_cycle_time", { p_project_id: projectId, p_weeks: 12 }),
+      supabase.rpc("analytics_cumulative_flow", { p_project_id: projectId, p_days: 30 }),
+      supabase.rpc("analytics_summary", { p_project_id: projectId }),
+      supabase.rpc("analytics_column_breakdown", { p_project_id: projectId }),
+      supabase.rpc("analytics_member_progress", { p_project_id: projectId, p_days: 30 }),
+      supabase.rpc("analytics_at_risk", { p_project_id: projectId, p_limit: 50 }),
+      supabase.rpc("analytics_breakdown", { p_project_id: projectId }),
+    ]);
+
+  // P0002 (not an admin, or no such project) is a 404, matching every other
+  // project-scoped read in this app. Any other error (timeout, migration
+  // drift) is a genuine failure, not "no data," so it must not render as
+  // legitimate zeros either.
+  const results = [throughput, cycleTime, flow, summary, columns, members, atRisk, breakdown];
   if (results.some((r) => r.error?.code === "P0002")) notFound();
   const firstError = results.find((r) => r.error)?.error;
   if (firstError) {
@@ -39,7 +59,9 @@ export default async function AnalyticsPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 p-6">
-      <h1 className="text-xl font-semibold">Analytics</h1>
+      <h1 className="text-headline-lg-mobile sm:text-headline-lg font-serif font-medium">
+        Analytics
+      </h1>
       <p className="text-muted-foreground text-xs">
         Cycle time evaluates each task&apos;s column against the board&apos;s current workflow, not
         the workflow that was in place on that historical date.
@@ -53,6 +75,49 @@ export default async function AnalyticsPage({
           value={summaryRow?.avg_cycle_hours ? `${Math.round(summaryRow.avg_cycle_hours)}h` : "—"}
         />
       </div>
+      <ChartErrorBoundary label="Overall progress">
+        <ProgressOverview
+          rows={(columns.data ?? []).map(
+            (r: {
+              column_id: string;
+              column_name: string;
+              is_done_column: boolean;
+              task_count: number;
+            }) => ({
+              columnId: r.column_id,
+              name: r.column_name,
+              isDone: r.is_done_column,
+              taskCount: r.task_count,
+            }),
+          )}
+        />
+      </ChartErrorBoundary>
+      <ChartErrorBoundary label="Overdue and at risk">
+        <AtRiskList
+          projectId={projectId}
+          tasks={(atRisk.data ?? []).map(
+            (r: {
+              task_id: string;
+              title: string;
+              due_date: string;
+              priority: string;
+              column_name: string;
+              assignee_name: string | null;
+              is_overdue: boolean;
+              days_until_due: number;
+            }) => ({
+              taskId: r.task_id,
+              title: r.title,
+              dueDate: r.due_date,
+              priority: r.priority,
+              columnName: r.column_name,
+              assigneeName: r.assignee_name,
+              isOverdue: r.is_overdue,
+              daysUntilDue: r.days_until_due,
+            }),
+          )}
+        />
+      </ChartErrorBoundary>
       <ChartErrorBoundary label="Throughput">
         <ThroughputChart
           data={(throughput.data ?? []).map(
@@ -99,17 +164,46 @@ export default async function AnalyticsPage({
           )}
         />
       </ChartErrorBoundary>
-      <ChartErrorBoundary label="Workload">
-        <WorkloadChart
-          data={(workload.data ?? []).map(
+      <ChartErrorBoundary label="Progress by member">
+        <MemberProgressTable
+          rows={(members.data ?? []).map(
             (r: {
-              member_user_id: string;
+              member_user_id: string | null;
               display_name: string;
+              member_role: string | null;
               open_count: number;
-              done_count: number;
+              in_progress_count: number;
+              completed_in_period: number;
+              overdue_count: number;
+              due_soon_count: number;
             }) => ({
               memberUserId: r.member_user_id,
               displayName: r.display_name,
+              role: r.member_role,
+              openCount: r.open_count,
+              inProgressCount: r.in_progress_count,
+              completedInPeriod: r.completed_in_period,
+              overdueCount: r.overdue_count,
+              dueSoonCount: r.due_soon_count,
+            }),
+          )}
+        />
+      </ChartErrorBoundary>
+      <ChartErrorBoundary label="By priority and label">
+        <BreakdownChart
+          rows={(breakdown.data ?? []).map(
+            (r: {
+              dimension: BreakdownRow["dimension"];
+              key: string;
+              name: string;
+              color: string | null;
+              open_count: number;
+              done_count: number;
+            }) => ({
+              dimension: r.dimension,
+              key: r.key,
+              name: r.name,
+              color: r.color,
               openCount: r.open_count,
               doneCount: r.done_count,
             }),

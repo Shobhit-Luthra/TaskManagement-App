@@ -41,6 +41,15 @@
   --status-completed-bg: #ecfccb;
   --status-completed-fg: #3f6212;
   --status-completed-border: #d9f99d;
+  /* Categorical chart slots, fixed order (never cycled). Validated with the
+     dataviz palette checker against --card in each mode; light slots 1, 3, 5
+     sit under 3:1, so charts carry legends, visible values and a text table. */
+  --color-chart-1: #eb6834;
+  --color-chart-2: #2a78d6;
+  --color-chart-3: #1baf7a;
+  --color-chart-4: #4a3aa7;
+  --color-chart-5: #e87ba4;
+  --color-chart-6: #008300;
   --radius-sm: 0.25rem;
   --radius: 0.5rem;
   --radius-md: 0.75rem;
@@ -94,6 +103,12 @@
   --status-completed-bg: rgb(16 185 129 / 0.16);
   --status-completed-fg: #6ee7b7;
   --status-completed-border: rgb(16 185 129 / 0.35);
+  --color-chart-1: #d95926;
+  --color-chart-2: #3987e5;
+  --color-chart-3: #199e70;
+  --color-chart-4: #9085e9;
+  --color-chart-5: #d55181;
+  --color-chart-6: #008300;
 }
 
 @theme inline {
