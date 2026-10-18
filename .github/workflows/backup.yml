@@ -32,8 +32,16 @@ jobs:
       - name: Dump schema and data
         if: steps.gate.outputs.run == 'true'
         run: |
-          supabase db dump --db-url "$DB_URL" -f schema.sql
-          supabase db dump --db-url "$DB_URL" --data-only -f data.sql
+          # The dump runs pg_dump in a container; a transient pull/start failure used to fail
+          # the whole night, so retry before giving up.
+          for attempt in 1 2 3; do
+            if supabase db dump --db-url "$DB_URL" -f schema.sql               && supabase db dump --db-url "$DB_URL" --data-only -f data.sql; then
+              exit 0
+            fi
+            echo "::warning::dump attempt $attempt failed"
+            sleep 30
+          done
+          exit 1
       - name: Encrypt backup
         if: steps.gate.outputs.run == 'true'
         run: |
