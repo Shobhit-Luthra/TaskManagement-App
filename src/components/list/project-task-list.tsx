@@ -12,7 +12,11 @@ import { useProjectChannel } from "@/lib/realtime/use-project-channel";
 import { mergeColumnEvent, mergeTaskEvent } from "@/lib/realtime/board-sync";
 import { type InlineTaskPatch } from "./task-table";
 import { GroupedTaskList } from "./grouped-task-list";
-import { TaskDetailDrawer } from "@/components/board/task-detail-drawer";
+import dynamic from "next/dynamic";
+
+const TaskDetailDrawer = dynamic(() =>
+  import("@/components/board/task-detail-drawer").then((m) => m.TaskDetailDrawer),
+);
 import { TaskComposer } from "@/components/board/project-board";
 import { Button } from "@/components/ui/button";
 
@@ -202,10 +206,10 @@ export function ProjectTaskList({
               ),
             )
           }
-          onLinkCountChange={(count) =>
+          onAttachmentCountChange={(count) =>
             setTasks((current) =>
               current.map((task) =>
-                task.id === editingTask.id ? { ...task, link_count: count } : task,
+                task.id === editingTask.id ? { ...task, attachment_count: count } : task,
               ),
             )
           }

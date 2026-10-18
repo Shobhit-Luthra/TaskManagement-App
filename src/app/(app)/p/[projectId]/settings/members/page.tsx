@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth-user";
 import { MembersPageClient } from "./members-page-client";
 
 export default async function MembersSettingsPage({
@@ -9,7 +10,7 @@ export default async function MembersSettingsPage({
 }) {
   const { projectId } = await params;
   const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
+  const { data: auth } = await getAuthUser();
   const { data: membership } = await supabase
     .from("memberships")
     .select("role")

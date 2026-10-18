@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth-user";
 import { ChartErrorBoundary } from "@/components/analytics/chart-error-boundary";
 import { StatTile } from "@/components/analytics/stat-tile";
 import { ThroughputChart } from "@/components/analytics/throughput-chart";
@@ -22,7 +23,7 @@ export default async function AnalyticsPage({
   // anyone else); checking first avoids eight doomed round-trips.
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) notFound();
   const { data: membership } = await supabase
     .from("memberships")

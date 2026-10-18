@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { ProjectNav } from "@/components/project-nav";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth-user";
 
 export default async function ProjectLayout({
   children,
@@ -13,7 +14,7 @@ export default async function ProjectLayout({
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) notFound();
   const { data: membership } = await supabase
     .from("memberships")

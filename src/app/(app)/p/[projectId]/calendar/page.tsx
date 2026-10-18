@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { CalendarView } from "@/components/calendar/calendar-view";
 import { todayInTimeZone } from "@/lib/filters/timezone";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth-user";
 
 export default async function CalendarPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
@@ -12,7 +13,7 @@ export default async function CalendarPage({ params }: { params: Promise<{ proje
     },
     { data: project },
   ] = await Promise.all([
-    supabase.auth.getUser(),
+    getAuthUser(),
     supabase
       .from("projects")
       .select("name, timezone")

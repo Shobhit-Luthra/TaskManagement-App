@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ProjectBoard, type BoardColumn, type BoardTask } from "@/components/board/project-board";
 import { BoardHeaderInvite } from "@/components/members/board-header-invite";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth-user";
 import { subtaskCounts } from "@/lib/tasks/subtask-counts";
 import { embeddedCount } from "@/lib/tasks/embedded-count";
 
@@ -17,7 +18,7 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
       .eq("id", projectId)
       .is("deleted_at", null)
       .maybeSingle(),
-    supabase.auth.getUser(),
+    getAuthUser(),
   ]);
   if (!project || !auth.user) notFound();
   const [
@@ -36,7 +37,7 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
     supabase
       .from("tasks")
       .select(
-        "id, column_id, title, description, due_date, priority, position, assignee_id, created_at, updated_at, task_labels(labels(id, name, color)), subtasks(is_completed), task_links(count)",
+        "id, column_id, title, description, due_date, priority, position, assignee_id, created_at, updated_at, task_labels(labels(id, name, color)), subtasks(is_completed), task_attachments(count)",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null)
@@ -61,10 +62,10 @@ export default async function BoardPage({ params }: { params: Promise<{ projectI
     );
   }
   const columns = (columnData ?? []) as BoardColumn[];
-  const tasks = (taskData ?? []).map(({ subtasks, task_links, ...task }) => ({
+  const tasks = (taskData ?? []).map(({ subtasks, task_attachments, ...task }) => ({
     ...task,
     ...subtaskCounts(subtasks),
-    link_count: embeddedCount(task_links),
+    attachment_count: embeddedCount(task_attachments),
     labels: (task.task_labels ?? []).flatMap((taskLabel) => {
       const label = Array.isArray(taskLabel.labels) ? taskLabel.labels[0] : taskLabel.labels;
       return label ? [{ id: label.id, name: label.name, color: label.color }] : [];

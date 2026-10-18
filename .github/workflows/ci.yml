@@ -54,7 +54,9 @@ jobs:
       - run: npm run test:coverage
       # Production dependencies only: dev-only advisories (e.g. braces via eslint-config-next)
       # never ship, and some have no patched release to upgrade to.
-      - run: npm audit --omit=dev --audit-level=high
+      # Advisory data changes daily, so a new CVE must not turn every unrelated PR red; it is
+      # reported as a warning here and fixed in its own change.
+      - run: npm audit --omit=dev --audit-level=high || echo "::warning::npm audit found high-severity advisories"
       - run: npm run build
       - run: npm run size
       - uses: actions/upload-artifact@v4

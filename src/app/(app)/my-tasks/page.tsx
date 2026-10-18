@@ -5,6 +5,7 @@ import { MyTasksList } from "@/components/my-tasks/my-tasks-list";
 import { todayInTimeZone } from "@/lib/filters/timezone";
 import type { MyTask } from "@/lib/my-tasks/group";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth-user";
 
 export default async function MyTasksPage({
   searchParams,
@@ -14,7 +15,7 @@ export default async function MyTasksPage({
   const { view } = await searchParams;
   const showCalendar = view === "calendar";
   const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
+  const { data: auth } = await getAuthUser();
   if (!auth.user) redirect("/login");
   const { data, error } = await supabase
     .from("tasks")

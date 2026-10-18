@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { CheckCircle2, FolderKanban, UserCircle } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -18,61 +17,21 @@ import { cn } from "@/lib/utils";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notifications/bell";
-import { createClient } from "@/lib/supabase/client";
 
-type SidebarProject = { id: string; name: string };
+export type SidebarProject = { id: string; name: string };
 
-export function AppShell({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
+export function AppShell({
+  children,
+  email,
+  userId,
+  projects,
+}: {
+  children: React.ReactNode;
+  email: string;
+  userId: string;
+  projects: SidebarProject[];
+}) {
   const pathname = usePathname();
-  const [email, setEmail] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [accountError, setAccountError] = useState(false);
-  const [projects, setProjects] = useState<SidebarProject[]>([]);
-  useEffect(() => {
-    let active = true;
-    void createClient()
-      .from("projects")
-      .select("id, name")
-      .is("deleted_at", null)
-      .eq("is_archived", false)
-      .order("updated_at", { ascending: false })
-      .limit(10)
-      .then(({ data }) => {
-        if (active && data) setProjects(data);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-  useEffect(() => {
-    let active = true;
-    void Promise.race([
-      createClient().auth.getUser(),
-      new Promise<never>((_, reject) =>
-        window.setTimeout(() => reject(new Error("Account request timed out")), 5_000),
-      ),
-    ])
-      .then(({ data }) => {
-        if (!active) return;
-        if (!data.user) {
-          router.replace("/login");
-          return;
-        }
-        if (!data.user.email_confirmed_at) {
-          router.replace("/verify-email");
-          return;
-        }
-        setEmail(data.user.email ?? "Signed in");
-        setUserId(data.user.id);
-      })
-      .catch(() => {
-        if (active) setAccountError(true);
-      });
-    return () => {
-      active = false;
-    };
-  }, [router]);
   return (
     <div className="min-h-dvh">
       <a
@@ -90,7 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Brand className="w-32" />
         </Link>
         <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-sm sm:gap-4">
-          {userId && <NotificationBell userId={userId} />}
+          <NotificationBell userId={userId} />
           <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -99,14 +58,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Avatar size="lg">
                 <AvatarFallback className="bg-secondary text-secondary-foreground font-semibold">
-                  {email?.slice(0, 2).toUpperCase() ?? <UserCircle className="size-5" />}
+                  {email.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel className="break-all">
-                {email ?? (accountError ? "Account unavailable" : "Loading account…")}
-              </DropdownMenuLabel>
+              <DropdownMenuLabel className="break-all">{email}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link href="/account">

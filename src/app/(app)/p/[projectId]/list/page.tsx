@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth-user";
 import { ProjectTaskList } from "@/components/list/project-task-list";
 import type { BoardTask } from "@/components/board/project-board";
 import { subtaskCounts } from "@/lib/tasks/subtask-counts";
@@ -8,7 +9,7 @@ import { embeddedCount } from "@/lib/tasks/embedded-count";
 export default async function ListPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
+  const { data: auth } = await getAuthUser();
   if (!auth.user) notFound();
   const [projectResult, membershipResult, tasksResult, columnsResult, peersResult, labelsResult] =
     await Promise.all([
@@ -27,7 +28,7 @@ export default async function ListPage({ params }: { params: Promise<{ projectId
       supabase
         .from("tasks")
         .select(
-          "id, title, description, column_id, due_date, priority, position, assignee_id, created_at, updated_at, task_labels(labels(id, name, color)), subtasks(is_completed), task_links(count)",
+          "id, title, description, column_id, due_date, priority, position, assignee_id, created_at, updated_at, task_labels(labels(id, name, color)), subtasks(is_completed), task_attachments(count)",
         )
         .eq("project_id", projectId)
         .is("deleted_at", null)
@@ -47,10 +48,10 @@ export default async function ListPage({ params }: { params: Promise<{ projectId
   const project = projectResult.data,
     membership = membershipResult.data;
   if (!project || !membership) notFound();
-  const tasks = (tasksResult.data ?? []).map(({ subtasks, task_links, ...task }) => ({
+  const tasks = (tasksResult.data ?? []).map(({ subtasks, task_attachments, ...task }) => ({
     ...task,
     ...subtaskCounts(subtasks),
-    link_count: embeddedCount(task_links),
+    attachment_count: embeddedCount(task_attachments),
     labels: (task.task_labels ?? []).flatMap((relation) => {
       const label = Array.isArray(relation.labels) ? relation.labels[0] : relation.labels;
       return label ? [label] : [];
