@@ -8,6 +8,7 @@ vi.mock("@/lib/cron/job-runs", () => ({ claimJobRun, finishJobRun }));
 
 const { flushNotificationQueue } = vi.hoisted(() => ({ flushNotificationQueue: vi.fn() }));
 vi.mock("@/lib/notifications/flush", () => ({ flushNotificationQueue }));
+vi.mock("@/lib/push/flush", () => ({ flushPushQueue: vi.fn() }));
 
 process.env.CRON_SECRET = "test-cron-secret";
 

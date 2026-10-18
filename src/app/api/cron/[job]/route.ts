@@ -2,10 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { verifyCronSecret } from "@/lib/cron/verify-secret";
 import { claimJobRun, finishJobRun } from "@/lib/cron/job-runs";
 import { flushNotificationQueue } from "@/lib/notifications/flush";
+import { flushPushQueue } from "@/lib/push/flush";
 import { log } from "@/lib/log";
 
 const JOBS: Record<string, () => Promise<unknown>> = {
   "notification-flush": flushNotificationQueue,
+  "push-flush": flushPushQueue,
 };
 
 export async function POST(request: NextRequest, context: { params: Promise<{ job: string }> }) {

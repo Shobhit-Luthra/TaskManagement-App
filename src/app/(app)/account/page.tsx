@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { PushToggle } from "@/components/pwa/push-toggle";
 import { DeleteAccount } from "@/components/settings/delete-account";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/auth-user";
@@ -30,6 +31,7 @@ export default async function AccountPage() {
         <dt className="text-muted-foreground">Email</dt>
         <dd className="truncate">{profile?.email ?? user.email ?? "—"}</dd>
       </dl>
+      <PushToggle />
       <DeleteAccount />
     </main>
   );
