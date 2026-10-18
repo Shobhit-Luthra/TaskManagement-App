@@ -19,6 +19,8 @@ export function buildCsp(params: {
 
   return [
     "default-src 'self'",
+    "worker-src 'self'",
+    "manifest-src 'self'",
     "base-uri 'self'",
     "frame-ancestors 'none'",
     `connect-src 'self' ${origin} ${websocketOrigin}${sentryOrigin}`,

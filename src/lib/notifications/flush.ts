@@ -11,7 +11,7 @@ type QueueRow = {
   attempts: number;
 };
 
-type NotificationRow = {
+export type NotificationRow = {
   id: string;
   type: string;
   payload: Record<string, unknown>;
@@ -25,7 +25,7 @@ function escapeHtml(value: string): string {
   );
 }
 
-function describe(n: NotificationRow): string {
+export function describe(n: NotificationRow): string {
   const title = String(n.payload.taskTitle ?? "a task");
   switch (n.type) {
     case "task_assigned":
