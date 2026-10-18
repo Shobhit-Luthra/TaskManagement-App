@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth-user";
 import { ProjectTimeline } from "@/components/timeline/project-timeline";
 
 export default async function TimelinePage({ params }: { params: Promise<{ projectId: string }> }) {
@@ -11,7 +12,7 @@ export default async function TimelinePage({ params }: { params: Promise<{ proje
     },
     { data: project },
   ] = await Promise.all([
-    supabase.auth.getUser(),
+    getAuthUser(),
     supabase
       .from("projects")
       .select("name")

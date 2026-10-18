@@ -25,12 +25,18 @@ import { useProjectChannel } from "@/lib/realtime/use-project-channel";
 import { cn } from "@/lib/utils";
 import { useBoardDnd } from "./use-board-dnd";
 import { Announcer, type AnnouncerHandle } from "./announcer";
-import { TaskDetailDrawer, isBoardTask } from "./task-detail-drawer";
+import dynamic from "next/dynamic";
+import { isBoardTask } from "./is-board-task";
+
+// The drawer pulls in comments, markdown, labels and links; load it only once a task is opened.
+const TaskDetailDrawer = dynamic(() =>
+  import("./task-detail-drawer").then((m) => m.TaskDetailDrawer),
+);
 import type { PeerOption } from "./mention-autocomplete";
 import { LabelChip } from "@/components/labels/label-chip";
 import { type LabelOption } from "@/components/labels/label-picker";
 import { SubtaskProgress } from "@/components/tasks/subtask-progress";
-import { LinkCount } from "@/components/tasks/link-count";
+import { AttachmentCount } from "@/components/tasks/attachment-count";
 import { applyFilters } from "@/lib/filters/apply";
 import { useFilterState } from "./use-filter-state";
 import { FilterBar } from "./filter-bar";
@@ -59,7 +65,7 @@ export type BoardTask = {
   labels?: LabelOption[];
   subtask_done?: number;
   subtask_total?: number;
-  link_count?: number;
+  attachment_count?: number;
 };
 
 export function ProjectBoard({
@@ -470,10 +476,12 @@ export function ProjectBoard({
               ),
             )
           }
-          onLinkCountChange={(count) =>
+          onAttachmentCountChange={(count) =>
             setTasks((current) =>
               current.map((candidate) =>
-                candidate.id === editingTask.id ? { ...candidate, link_count: count } : candidate,
+                candidate.id === editingTask.id
+                  ? { ...candidate, attachment_count: count }
+                  : candidate,
               ),
             )
           }
@@ -688,7 +696,7 @@ function TaskCard({
           {task.priority}
         </span>
         <SubtaskProgress done={task.subtask_done ?? 0} total={task.subtask_total ?? 0} />
-        <LinkCount count={task.link_count ?? 0} />
+        <AttachmentCount count={task.attachment_count ?? 0} />
         {due && (
           <span
             className={cn(

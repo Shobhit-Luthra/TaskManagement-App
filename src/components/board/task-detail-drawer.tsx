@@ -14,23 +14,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AssigneePicker } from "./assignee-picker";
 import { CommentThread } from "./comment-thread";
 import { TaskActivity } from "./task-activity";
-import { TaskLinks } from "./task-links";
+import { TaskAttachments } from "./task-attachments";
 import type { PeerOption } from "./mention-autocomplete";
 import { LabelPicker, type LabelOption } from "@/components/labels/label-picker";
 import type { BoardTask } from "./project-board";
-import { cn } from "@/lib/utils";
+import { isBoardTask } from "./is-board-task";
 
-export function isBoardTask(value: unknown): value is { data: BoardTask } {
-  if (typeof value !== "object" || value === null || !("data" in value)) return false;
-  const task = value.data;
-  return (
-    typeof task === "object" &&
-    task !== null &&
-    "id" in task &&
-    typeof task.id === "string" &&
-    "column_id" in task
-  );
-}
+export { isBoardTask };
+import { cn } from "@/lib/utils";
 
 function isConflictPayload(
   value: unknown,
@@ -62,7 +53,7 @@ export function TaskDetailDrawer({
   onSaved,
   onDeleted,
   onSubtaskCountsChange,
-  onLinkCountChange,
+  onAttachmentCountChange,
 }: {
   projectId: string;
   currentUserId: string;
@@ -77,7 +68,7 @@ export function TaskDetailDrawer({
   onSaved: (task: BoardTask) => void;
   onDeleted: (taskId: string) => void;
   onSubtaskCountsChange?: (done: number, total: number) => void;
-  onLinkCountChange?: (count: number) => void;
+  onAttachmentCountChange?: (count: number) => void;
 }) {
   const [returnFocus] = useState(() =>
     typeof document === "undefined" ? null : document.activeElement,
@@ -313,12 +304,12 @@ export function TaskDetailDrawer({
             readOnly={readOnly}
             onCountsChange={onSubtaskCountsChange}
           />
-          <TaskLinks
+          <TaskAttachments
             taskId={task.id}
             currentUserId={currentUserId}
             currentUserRole={currentUserRole}
             readOnly={readOnly}
-            onCountChange={onLinkCountChange}
+            onCountChange={onAttachmentCountChange}
           />
           <Tabs defaultValue="comments">
             <TabsList className="w-full">

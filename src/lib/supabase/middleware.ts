@@ -28,15 +28,18 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  const { data } = await supabase.auth.getUser();
+  // getClaims verifies the JWT locally against cached signing keys instead of calling the
+  // auth server on every request; it still refreshes an expired session.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims ?? null;
   const pathname = request.nextUrl.pathname;
-  if (!data.user && !publicPaths.has(pathname) && !pathname.startsWith("/auth/")) {
+  if (!user && !publicPaths.has(pathname) && !pathname.startsWith("/auth/")) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
     return NextResponse.redirect(url);
   }
-  if (data.user && (pathname === "/login" || pathname === "/signup")) {
+  if (user && (pathname === "/login" || pathname === "/signup")) {
     const url = request.nextUrl.clone();
     url.pathname = "/projects";
     url.search = "";

@@ -12,7 +12,7 @@ vi.mock("./comment-thread", () => ({
     </form>
   ),
 }));
-vi.mock("./task-links", () => ({ TaskLinks: () => null }));
+vi.mock("./task-attachments", () => ({ TaskAttachments: () => null }));
 afterEach(() => vi.unstubAllGlobals());
 
 const task = {
