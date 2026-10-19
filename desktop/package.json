@@ -1,14 +1,15 @@
 {
   "name": "kanbo-desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Kanbo desktop app for Windows",
   "author": "Shobhit Luthra",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis portable",
-    "pack": "electron-builder --win dir"
+    "dist": "electron-builder --win nsis portable --publish never",
+    "pack": "electron-builder --win dir",
+    "release": "electron-builder --win nsis portable --publish always"
   },
   "build": {
     "appId": "app.kanbo.desktop",
@@ -21,6 +22,7 @@
       "main.js",
       "preload.js",
       "offline.html",
+      "build/icon.png",
       "package.json"
     ],
     "win": {
@@ -37,10 +39,20 @@
     },
     "portable": {
       "artifactName": "Kanbo-Portable-${version}.${ext}"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Shobhit-Luthra",
+        "repo": "TaskManagement-App"
+      }
+    ]
   },
   "devDependencies": {
     "electron": "^44.9.0",
     "electron-builder": "^26.0.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

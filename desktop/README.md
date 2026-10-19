@@ -18,3 +18,17 @@ policy (like the dev machine) refuse to run them. Signing needs a code-signing c
 
 Web push does not work inside Electron (it has no push service). Use the installed web app
 (Edge or Chrome, "Install Kanbo") when you want push notifications on Windows.
+
+## Releases and auto-update
+
+Push a tag to build and publish the installer to GitHub Releases:
+
+```
+git tag desktop-v0.2.0 && git push origin desktop-v0.2.0
+```
+
+Installed copies check for a newer release on launch and update themselves. The app lives in the
+system tray; closing the window hides it, and the tray menu has Quit.
+
+To sign the installer, add `WIN_CSC_LINK` (base64 `.pfx`) and `WIN_CSC_KEY_PASSWORD` as repository
+secrets. An EV or standard code-signing certificate removes the SmartScreen warning.

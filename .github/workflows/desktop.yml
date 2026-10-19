@@ -1,0 +1,36 @@
+name: desktop
+
+# Builds the Windows installer and publishes it (with auto-update metadata) to a GitHub
+# Release. Trigger it by pushing a tag: git tag desktop-v0.2.0 && git push origin desktop-v0.2.0
+on:
+  push:
+    tags: ["desktop-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      # npm skips Electron's postinstall under allow-scripts, so fetch the binary explicitly.
+      - run: node node_modules/electron/install.js
+      # Optional code signing: add WIN_CSC_LINK (base64 .pfx) and WIN_CSC_KEY_PASSWORD as
+      # repository secrets. Without them the installer is built unsigned.
+      - run: npm run release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
