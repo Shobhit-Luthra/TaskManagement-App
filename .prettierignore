@@ -8,3 +8,4 @@ supabase/.branches
 supabase/.temp
 *.md
 docs/
+desktop

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Kanbo · Offline</title>
+    <style>
+      body { font-family: system-ui, sans-serif; background: #fff8f6; color: #2a1d16; display: grid; place-items: center; min-height: 100vh; margin: 0; text-align: center; }
+      button { margin-top: 16px; padding: 8px 16px; border: 0; border-radius: 8px; background: #693612; color: #fff; font-size: 14px; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>You're offline</h1>
+      <p>Kanbo needs a connection to load your boards.</p>
+      <button onclick="history.length > 1 ? history.back() : location.reload()">Try again</button>
+    </main>
+  </body>
+</html>

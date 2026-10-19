@@ -1,0 +1,46 @@
+{
+  "name": "kanbo-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kanbo desktop app for Windows",
+  "author": "Shobhit Luthra",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis portable",
+    "pack": "electron-builder --win dir"
+  },
+  "build": {
+    "appId": "app.kanbo.desktop",
+    "productName": "Kanbo",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "offline.html",
+      "package.json"
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Kanbo-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Kanbo-Portable-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^44.9.0",
+    "electron-builder": "^26.0.0"
+  }
+}

@@ -13,6 +13,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "coverage/**",
     "stitch-screens/**",
+    "desktop/**",
     "next-env.d.ts",
   ]),
   {
