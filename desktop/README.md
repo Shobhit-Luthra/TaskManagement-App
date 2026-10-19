@@ -32,3 +32,6 @@ system tray; closing the window hides it, and the tray menu has Quit.
 
 To sign the installer, add `WIN_CSC_LINK` (base64 `.pfx`) and `WIN_CSC_KEY_PASSWORD` as repository
 secrets. An EV or standard code-signing certificate removes the SmartScreen warning.
+
+If the project lives in a OneDrive folder, build outside it to avoid file-lock errors:
+`npx electron-builder --win nsis portable --publish never -c.directories.output=C:/kanbo-desktop-dist`
